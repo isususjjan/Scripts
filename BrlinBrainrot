@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   Teleport System v1.0
+--   Teleport System v1.1 + Stay Inside 🛡️
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -45,6 +45,39 @@ local function clearCFrame()
 end
 
 --------------------------------------------------------------------
+-- 🛡️ Stay Inside — مضاد الطرد من القواعد المقفولة!
+--------------------------------------------------------------------
+local stayOn = false
+local stayThread = nil
+
+local function toggleStay(on)
+    stayOn = on
+    if stayThread then
+        task.cancel(stayThread)
+        stayThread = nil
+    end
+    if on then
+        stayThread = task.spawn(function()
+            while stayOn do
+                pcall(function()
+                    local root = getRoot()
+                    if SavedCFrame and root and root.Parent then
+                        local dist = (root.Position - SavedCFrame.Position).Magnitude
+                        if dist > 25 then
+                            root.Anchored = true
+                            root.CFrame = SavedCFrame + Vector3.new(0, 3, 0)
+                            task.wait(0.05)
+                            root.Anchored = false
+                        end
+                    end
+                end)
+                task.wait(0.1)
+            end
+        end)
+    end
+end
+
+--------------------------------------------------------------------
 -- تدمير أي لوحة قديمة
 --------------------------------------------------------------------
 if game.CoreGui:FindFirstChild("BrlinGui") then
@@ -60,7 +93,7 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 200)
+Frame.Size = UDim2.new(0, 220, 0, 245)
 Frame.Position = UDim2.new(0, 20, 0, 200)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 Frame.Active = true
@@ -90,6 +123,7 @@ local function updateStatus()
     Status.TextColor3 = SavedCFrame and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 80, 80)
 end
 
+-- زر متطور: يقبل الرفض (callback يرجع false = الزر يبقى OFF)
 local function makeButton(text, yPos, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -16, 0, 38)
@@ -99,11 +133,26 @@ local function makeButton(text, yPos, callback)
     btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
     btn.TextSize = 14
     btn.Parent = Frame
-    btn.MouseButton1Click:Connect(callback)
+
+    local on = false
+    btn.MouseButton1Click:Connect(function()
+        if not on then
+            local allowed = callback(true)
+            if allowed == false then return end -- الطلب مرفوض! يبقى OFF
+            on = true
+            btn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
+            btn.Text = string.gsub(text, "%[OFF%]", "[ON]")
+        else
+            callback(false)
+            on = false
+            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+            btn.Text = string.gsub(text, "%[ON%]", "[OFF]")
+        end
+    end)
 end
 
 --------------------------------------------------------------------
--- الأزرار الثلاثة
+-- الأزرار الأربعة
 --------------------------------------------------------------------
 
 -- ١. زر Set — حفظ المكان الحالي
@@ -129,16 +178,15 @@ makeButton("🚀  Tp", 98, function()
         return
     end
     local root = getRoot()
-    local char = player.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    -- نطفئ السقوط الكامل لحظة النقل حتى لا نسقط بالخطأ
-    local oldState = hum and hum:GetState()
     root.Anchored = true
     task.wait()
     root.CFrame = SavedCFrame + Vector3.new(0, 3, 0)
     task.wait(0.1)
     root.Anchored = false
-    if hum and oldState then pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end) end
+    pcall(function()
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+    end)
     game.StarterGui:SetCore("SendNotification", {
         Title = "🚀 Teleported!",
         Text = "Back to your saved spot ✅",
@@ -148,6 +196,7 @@ end)
 
 -- ٣. زر Remove Teleport — مسح كل شيء
 makeButton("🗑️  Remove Teleport", 141, function()
+    toggleStay(false) -- إطفاء Stay أيضاً إن كان شغال!
     clearCFrame()
     updateStatus()
     game.StarterGui:SetCore("SendNotification", {
@@ -157,12 +206,25 @@ makeButton("🗑️  Remove Teleport", 141, function()
     })
 end)
 
+-- ٤. زر Stay Inside — مضاد الطرد!
+makeButton("🛡️ Stay Inside [OFF]", 184, function(on)
+    if on and SavedCFrame == nil then
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "❌ No Save!",
+            Text = "اضغط Set داخل القاعدة أولاً!",
+            Duration = 3
+        })
+        return false -- يرفض التفعيل بدون نقطة محفوظة!
+    end
+    toggleStay(on)
+end)
+
 --------------------------------------------------------------------
 -- إشعار النجاح
 --------------------------------------------------------------------
 game.StarterGui:SetCore("SendNotification", {
     Title = "🧠 Brlin Funny Gamer",
-    Text = "Teleport System Loaded ✅",
+    Text = "Teleport System v1.1 Loaded ✅",
     Duration = 5
 })
 
