@@ -1,24 +1,51 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   النسخة الكاملة v1.0
+--   Teleport System v1.0
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
 
--- دالة جلب الشخصية بأمان
-local function getHumanoid()
-    local char = player.Character or player.CharacterAdded:Wait()
-    return char:WaitForChild("Humanoid")
-end
-
--- دالة جلب جذر الجسد
+-- دالة جلب جذر الجسد بأمان
 local function getRoot()
     local char = player.Character or player.CharacterAdded:Wait()
     return char:WaitForChild("HumanoidRootPart")
 end
 
 --------------------------------------------------------------------
--- تدمير أي لوحة قديمة (لمنع التكرار عند إعادة التنفيذ!)
+-- نظام الحفظ الدائم (ملف على جهازك!)
+--------------------------------------------------------------------
+local SAVE_FILE = "BrlinTP.txt"
+local SavedCFrame = nil
+
+-- عند التشغيل: هل يوجد مكان محفوظ من سابق؟
+if writefile and readfile and isfile and isfile(SAVE_FILE) then
+    local ok, data = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(readfile(SAVE_FILE))
+    end)
+    if ok and data then
+        SavedCFrame = CFrame.new(data[1], data[2], data[3])
+    end
+end
+
+local function saveCFrame(cf)
+    SavedCFrame = cf
+    if writefile then
+        pcall(function()
+            local pos = cf.Position
+            writefile(SAVE_FILE, game:GetService("HttpService"):JSONEncode({pos.X, pos.Y, pos.Z}))
+        end)
+    end
+end
+
+local function clearCFrame()
+    SavedCFrame = nil
+    if writefile and isfile and isfile(SAVE_FILE) then
+        pcall(function() delfile(SAVE_FILE) end)
+    end
+end
+
+--------------------------------------------------------------------
+-- تدمير أي لوحة قديمة
 --------------------------------------------------------------------
 if game.CoreGui:FindFirstChild("BrlinGui") then
     game.CoreGui:FindFirstChild("BrlinGui"):Destroy()
@@ -33,7 +60,7 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 230)
+Frame.Size = UDim2.new(0, 220, 0, 200)
 Frame.Position = UDim2.new(0, 20, 0, 200)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 Frame.Active = true
@@ -48,6 +75,21 @@ Title.BackgroundTransparency = 1
 Title.TextSize = 15
 Title.Parent = Frame
 
+-- شريط حالة الحفظ
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, 0, 0, 20)
+Status.Position = UDim2.new(0, 0, 0, 30)
+Status.Text = SavedCFrame and "📍 Saved ✓" or "❌ No Save"
+Status.TextColor3 = SavedCFrame and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 80, 80)
+Status.BackgroundTransparency = 1
+Status.TextSize = 13
+Status.Parent = Frame
+
+local function updateStatus()
+    Status.Text = SavedCFrame and "📍 Saved ✓" or "❌ No Save"
+    Status.TextColor3 = SavedCFrame and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 80, 80)
+end
+
 local function makeButton(text, yPos, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -16, 0, 38)
@@ -57,55 +99,62 @@ local function makeButton(text, yPos, callback)
     btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
     btn.TextSize = 14
     btn.Parent = Frame
-
-    local on = false
-    btn.MouseButton1Click:Connect(function()
-        on = not on
-        btn.BackgroundColor3 = on and Color3.fromRGB(0, 150, 70) or Color3.fromRGB(45, 45, 60)
-        callback(on)
-    end)
+    btn.MouseButton1Click:Connect(callback)
 end
 
 --------------------------------------------------------------------
--- الهكات
+-- الأزرار الثلاثة
 --------------------------------------------------------------------
 
--- ١. السرعة
-makeButton("⚡ Speed Hack [OFF]", 40, function(on)
-    local hum = getHumanoid()
-    hum.WalkSpeed = on and 100 or 16
-end)
-
--- ٢. القفز العالي
-makeButton("🦘 Jump Hack [OFF]", 85, function(on)
-    local hum = getHumanoid()
-    hum.JumpPower = on and 150 or 50
-end)
-
--- ٣. الإضاءة الليلية (شوف كل شيء!)
-makeButton("💡 Full Bright [OFF]", 130, function(on)
-    local light = game.Lighting
-    if on then
-        light.Brightness = 5
-        light.ClockTime = 14
-        light.FogEnd = 100000
-        light.Ambient = Color3.fromRGB(200, 200, 200)
-    else
-        light.Brightness = 1
-        light.ClockTime = 0
-        light.FogEnd = 1000
-        light.Ambient = Color3.fromRGB(70, 70, 70)
-    end
-end)
-
--- ٤. زر التجربة (يرفعك لأعلى!)
-makeButton("🚀 Test Launch", 175, function(on)
+-- ١. زر Set — حفظ المكان الحالي
+makeButton("📍  Set", 55, function()
     local root = getRoot()
-    local bv = Instance.new("BodyVelocity")
-    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-    bv.Velocity = Vector3.new(0, 150, 0)
-    bv.Parent = root
-    game.Debris:AddItem(bv, 0.3)
+    saveCFrame(root.CFrame)
+    updateStatus()
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "📍 Saved!",
+        Text = "Position saved permanently ✅",
+        Duration = 3
+    })
+end)
+
+-- ٢. زر Tp — الانتقال للمكان المحفوظ
+makeButton("🚀  Tp", 98, function()
+    if SavedCFrame == nil then
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "❌ No Save!",
+            Text = "اضغط Set أولاً لحفظ مكان",
+            Duration = 3
+        })
+        return
+    end
+    local root = getRoot()
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    -- نطفئ السقوط الكامل لحظة النقل حتى لا نسقط بالخطأ
+    local oldState = hum and hum:GetState()
+    root.Anchored = true
+    task.wait()
+    root.CFrame = SavedCFrame + Vector3.new(0, 3, 0)
+    task.wait(0.1)
+    root.Anchored = false
+    if hum and oldState then pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end) end
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "🚀 Teleported!",
+        Text = "Back to your saved spot ✅",
+        Duration = 3
+    })
+end)
+
+-- ٣. زر Remove Teleport — مسح كل شيء
+makeButton("🗑️  Remove Teleport", 141, function()
+    clearCFrame()
+    updateStatus()
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "🗑️ Cleared!",
+        Text = "All saves removed ❌",
+        Duration = 3
+    })
 end)
 
 --------------------------------------------------------------------
@@ -113,8 +162,8 @@ end)
 --------------------------------------------------------------------
 game.StarterGui:SetCore("SendNotification", {
     Title = "🧠 Brlin Funny Gamer",
-    Text = "Loaded Successfully ✅",
+    Text = "Teleport System Loaded ✅",
     Duration = 5
 })
 
-print("🧠 Brlin Starter Loaded! ✅")
+print("🧠 Brlin Teleport System Loaded! ✅")
