@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   v1.6 — Teleport + Full Spy + Hook Test 🧪
+--   v2.0 — Teleport + Full Spy (نظيف!)
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -43,39 +43,6 @@ local function clearCFrame()
 end
 
 --------------------------------------------------------------------
--- 🛡️ Stay Inside
---------------------------------------------------------------------
-local stayOn = false
-local stayThread = nil
-
-local function toggleStay(on)
-    stayOn = on
-    if stayThread then
-        task.cancel(stayThread)
-        stayThread = nil
-    end
-    if on then
-        stayThread = task.spawn(function()
-            while stayOn do
-                pcall(function()
-                    local root = getRoot()
-                    if SavedCFrame and root and root.Parent then
-                        local dist = (root.Position - SavedCFrame.Position).Magnitude
-                        if dist > 25 then
-                            root.Anchored = true
-                            root.CFrame = SavedCFrame + Vector3.new(0, 3, 0)
-                            task.wait(0.05)
-                            root.Anchored = false
-                        end
-                    end
-                end)
-                task.wait(0.1)
-            end
-        end)
-    end
-end
-
---------------------------------------------------------------------
 -- 📡 نظام التجسس الشامل
 --------------------------------------------------------------------
 local liveMessages = {}
@@ -88,7 +55,7 @@ local function argsToString(args)
     for i, arg in ipairs(args) do
         local t = typeof(arg)
         local v = tostring(arg)
-        if #v > 40 then v = v:sub(1, 40) .. "..." end
+        if #v > 90 then v = v:sub(1, 90) .. "..." end
         info = info .. " [" .. i .. "]" .. t .. ":" .. v
     end
     if info == "" then info = " (empty)" end
@@ -110,15 +77,11 @@ local function addLog(msg)
             for i = startI, count do
                 row = row + 1
                 local isOut = string.find(liveMessages[i], "📤", 1, true) ~= nil
-                local isTest = string.find(liveMessages[i], "🧪", 1, true) ~= nil
-                local color = Color3.fromRGB(255, 255, 150)
-                if isOut then color = Color3.fromRGB(100, 220, 255)
-                elseif isTest then color = Color3.fromRGB(255, 150, 255) end
                 local lbl = Instance.new("TextLabel")
                 lbl.Size = UDim2.new(1, -8, 0, 26)
                 lbl.Position = UDim2.new(0, 4, 0, (row - 1) * 26)
                 lbl.Text = liveMessages[i]
-                lbl.TextColor3 = color
+                lbl.TextColor3 = isOut and Color3.fromRGB(100, 220, 255) or Color3.fromRGB(255, 255, 150)
                 lbl.BackgroundTransparency = 1
                 lbl.TextSize = 11
                 lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -132,7 +95,7 @@ local function addLog(msg)
     end)
 end
 
--- (أ) التجسس على الصادر
+-- التجسس على الصادر — كل ما ترسله أنت للسيرفر!
 local function hookOutgoing()
     local ok, err = pcall(function()
         local oldNamecall
@@ -141,8 +104,8 @@ local function hookOutgoing()
             if (method == "FireServer" and self:IsA("RemoteEvent"))
                 or (method == "InvokeServer" and self:IsA("RemoteFunction")) then
                 local args = {...}
-                local path = self:GetFullName():sub(1, 70)
-                addLog("📤 OUT " .. method .. " " .. path .. argsToString(args))
+                local parentName = self.Parent and self.Parent.Name or "?"
+                addLog("📤 OUT " .. method .. " @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
             end
             return oldNamecall(self, ...)
         end)
@@ -153,9 +116,9 @@ local function hookOutgoing()
     return ok
 end
 
--- (ب) التجسس على الوارد
+-- التجسس على الوارد — كل ما يصلك من السيرفر
 local function hookIncoming()
-    local ok, err = pcall(function()
+    local ok = pcall(function()
         local function listen(folder, path, depth)
             if depth > 4 then return end
             for _, obj in pairs(folder:GetChildren()) do
@@ -171,115 +134,6 @@ local function hookIncoming()
         listen(game.ReplicatedStorage, "RS", 0)
     end)
     return ok
-end
-
--- (ج) رصد القفز والحركة
-local function hookMovement()
-    local ok = pcall(function()
-        local function watchHumanoid(hum)
-            hum.StateChanged:Connect(function(old, new)
-                if new == Enum.HumanoidStateType.Jumping then
-                    addLog("🏃 Jumped! 🦘")
-                elseif new == Enum.HumanoidStateType.Dead then
-                    addLog("💀 DIED!")
-                end
-            end)
-        end
-        if player.Character then
-            local hum = player.Character:FindFirstChildOfClass("Humanoid")
-            if hum then watchHumanoid(hum) end
-        end
-        player.CharacterAdded:Connect(function(char)
-            local hum = char:WaitForChild("Humanoid")
-            watchHumanoid(hum)
-            addLog("🔄 RESPAWNED!")
-        end)
-    end)
-    return ok
-end
-
---------------------------------------------------------------------
--- 🧪 اختبار حياة الهوك
---------------------------------------------------------------------
-local function testHook()
-    addLog("🧪 TEST 1: أنشئ Remote وهمي وأرسل FireServer...")
-    pcall(function()
-        local testRemote = Instance.new("RemoteEvent")
-        testRemote.Name = "BrlinTestRemote"
-        testRemote.Parent = game.ReplicatedStorage
-        task.wait(0.1)
-        testRemote:FireServer("HelloFromBrlin", 123)
-        task.wait(0.2)
-        testRemote:Destroy()
-        addLog("🧪 TEST 2: أُرسل! هل ظهرت رسالة زرقاء 📤 فوق؟")
-    end)
-end
-
---------------------------------------------------------------------
--- 🔍 Spy الثابت
---------------------------------------------------------------------
-local spyResults = {}
-
-local function runSpy()
-    spyResults = {}
-    local function scan(folder, path, depth)
-        if depth > 4 then return end
-        local ok = pcall(function()
-            for _, obj in pairs(folder:GetChildren()) do
-                if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-                    table.insert(spyResults, path .. "/" .. obj.Name .. " [" .. obj.ClassName .. "]")
-                end
-                scan(obj, path .. "/" .. obj.Name, depth + 1)
-            end
-        end)
-    end
-    scan(game.ReplicatedStorage, "RS", 0)
-end
-
-local function showSpyResults()
-    local ok, err = pcall(function()
-        runSpy()
-        if not game.CoreGui:FindFirstChild("BrlinGui") then return end
-        local old = game.CoreGui.BrlinGui:FindFirstChild("SpyFrame")
-        if old then old:Destroy() end
-
-        local SF = Instance.new("Frame")
-        SF.Name = "SpyFrame"
-        SF.Size = UDim2.new(0, 300, 0, 350)
-        SF.Position = UDim2.new(0, 260, 0, 200)
-        SF.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-        SF.Active = true
-        SF.Draggable = true
-        SF.Parent = game.CoreGui.BrlinGui
-
-        local STitle = Instance.new("TextLabel")
-        STitle.Size = UDim2.new(1, 0, 0, 30)
-        STitle.Text = "🔍 Spy — " .. #spyResults .. " Secrets"
-        STitle.TextColor3 = Color3.fromRGB(255, 220, 0)
-        STitle.BackgroundTransparency = 1
-        STitle.TextSize = 14
-        STitle.Parent = SF
-
-        local Scroll = Instance.new("ScrollingFrame")
-        Scroll.Size = UDim2.new(1, -10, 1, -40)
-        Scroll.Position = UDim2.new(0, 5, 0, 35)
-        Scroll.BackgroundColor3 = Color3.fromRGB(10, 10, 18)
-        Scroll.ScrollBarThickness = 6
-        Scroll.CanvasSize = UDim2.new(0, 0, 0, #spyResults * 22)
-        Scroll.Parent = SF
-
-        for i, line in ipairs(spyResults) do
-            local lbl = Instance.new("TextLabel")
-            lbl.Size = UDim2.new(1, -8, 0, 22)
-            lbl.Position = UDim2.new(0, 4, 0, (i - 1) * 22)
-            lbl.Text = line
-            lbl.TextColor3 = Color3.fromRGB(180, 255, 180)
-            lbl.BackgroundTransparency = 1
-            lbl.TextSize = 12
-            lbl.TextXAlignment = Enum.TextXAlignment.Left
-            lbl.Parent = Scroll
-        end
-    end)
 end
 
 --------------------------------------------------------------------
@@ -311,7 +165,7 @@ local function showLiveWindow()
         local legend = Instance.new("TextLabel")
         legend.Size = UDim2.new(1, 0, 0, 18)
         legend.Position = UDim2.new(0, 0, 0, 26)
-        legend.Text = "📤 out | 📥 in | 🏃 move | 🧪 test"
+        legend.Text = "📤 out (أنت) | 📥 in (سيرفر)"
         legend.TextColor3 = Color3.fromRGB(200, 200, 200)
         legend.BackgroundTransparency = 1
         legend.TextSize = 11
@@ -331,15 +185,11 @@ local function showLiveWindow()
         for i = startI, count do
             row = row + 1
             local isOut = string.find(liveMessages[i], "📤", 1, true) ~= nil
-            local isTest = string.find(liveMessages[i], "🧪", 1, true) ~= nil
-            local color = Color3.fromRGB(255, 255, 150)
-            if isOut then color = Color3.fromRGB(100, 220, 255)
-            elseif isTest then color = Color3.fromRGB(255, 150, 255) end
             local lbl = Instance.new("TextLabel")
             lbl.Size = UDim2.new(1, -8, 0, 26)
             lbl.Position = UDim2.new(0, 4, 0, (row - 1) * 26)
             lbl.Text = liveMessages[i]
-            lbl.TextColor3 = color
+            lbl.TextColor3 = isOut and Color3.fromRGB(100, 220, 255) or Color3.fromRGB(255, 255, 150)
             lbl.BackgroundTransparency = 1
             lbl.TextSize = 11
             lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -365,8 +215,8 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 410)
-Frame.Position = UDim2.new(0, 20, 0, 100)
+Frame.Size = UDim2.new(0, 220, 0, 255)
+Frame.Position = UDim2.new(0, 20, 0, 180)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 Frame.Active = true
 Frame.Draggable = true
@@ -407,7 +257,7 @@ local function makeButton(text, yPos, callback)
 end
 
 --------------------------------------------------------------------
--- الأزرار
+-- الأزرار الخمسة
 --------------------------------------------------------------------
 
 makeButton("📍  Set", 55, function()
@@ -448,7 +298,6 @@ makeButton("🚀  Tp", 94, function()
 end)
 
 makeButton("🗑️  Remove Teleport", 133, function()
-    toggleStay(false)
     clearCFrame()
     updateStatus()
     game.StarterGui:SetCore("SendNotification", {
@@ -458,53 +307,25 @@ makeButton("🗑️  Remove Teleport", 133, function()
     })
 end)
 
-makeButton("🛡️ Stay Inside [OFF]", 172, function()
-    if not stayOn then
-        if SavedCFrame == nil then
-            game.StarterGui:SetCore("SendNotification", {
-                Title = "❌ No Save!",
-                Text = "اضغط Set داخل القاعدة أولاً!",
-                Duration = 3
-            })
-            return
-        end
-        stayOn = true
-        toggleStay(true)
-    else
-        stayOn = false
-        toggleStay(false)
-    end
-end)
-
-makeButton("🔍  Spy — كشف الأسرار", 211, function()
-    showSpyResults()
-end)
-
-makeButton("📡  Full Spy — تشغيل الشامل!", 250, function()
+makeButton("📡  Full Spy — تشغيل الشامل!", 172, function()
     if not spyActive then
         local outOk = hookOutgoing()
         local inOk = hookIncoming()
-        local movOk = hookMovement()
         spyActive = true
-        addLog("✅ Full Spy ON! (out:" .. tostring(outOk) .. " in:" .. tostring(inOk) .. " mov:" .. tostring(movOk) .. ")")
+        addLog("✅ Full Spy ON! (out:" .. tostring(outOk) .. " in:" .. tostring(inOk) .. ")")
     end
     showLiveWindow()
 end)
 
-makeButton("🧪  Test Hook — اختبار الحياة", 289, function()
-    testHook()
-    showLiveWindow()
-end)
-
-makeButton("📜  عرض رسائل التجسس", 328, function()
+makeButton("📜  عرض رسائل التجسس", 211, function()
     showLiveWindow()
 end)
 
 --------------------------------------------------------------------
 game.StarterGui:SetCore("SendNotification", {
     Title = "🧠 Brlin Funny Gamer",
-    Text = "v1.6 Loaded ✅",
+    Text = "v2.0 Loaded ✅",
     Duration = 5
 })
 
-print("🧠 Brlin v1.6 Loaded! ✅")
+print("🧠 Brlin v2.0 Loaded! ✅")
