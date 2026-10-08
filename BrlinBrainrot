@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   v2.1 — Teleport + Full Spy الشامل 📡
+--   v2.2 — Teleport + Full Spy (Index Hook!)
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -71,15 +71,15 @@ local function addLog(msg)
         if liveScroll and liveScroll.Parent then
             liveScroll:ClearAllChildren()
             local count = #liveMessages
-            liveScroll.CanvasSize = UDim2.new(0, 0, 0, count * 26)
-            local startI = math.max(1, count - 30)
+            liveScroll.CanvasSize = UDim2.new(0, 0, 0, count * 44)
+            local startI = math.max(1, count - 20)
             local row = 0
             for i = startI, count do
                 row = row + 1
                 local isOut = string.find(liveMessages[i], "📤", 1, true) ~= nil
                 local lbl = Instance.new("TextLabel")
-                lbl.Size = UDim2.new(1, -8, 0, 26)
-                lbl.Position = UDim2.new(0, 4, 0, (row - 1) * 26)
+                lbl.Size = UDim2.new(1, -8, 0, 42)
+                lbl.Position = UDim2.new(0, 4, 0, (row - 1) * 44)
                 lbl.Text = liveMessages[i]
                 lbl.TextColor3 = isOut and Color3.fromRGB(100, 220, 255) or Color3.fromRGB(255, 255, 150)
                 lbl.BackgroundTransparency = 1
@@ -95,69 +95,42 @@ local function addLog(msg)
     end)
 end
 
--- التجسس على الصادر — شامل كل طرق الإرسال!
+-- التجسس الشامل على الصادر — Namecall + Index!
 local function hookOutgoing()
     local ok, err = pcall(function()
-        -- ١. الطريقة الكلاسيكية (Namecall)
+        -- ١. هوك Namecall — يلتقط remote:FireServer()
         local oldNamecall
         oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
             local method = getnamecallmethod()
             if (method == "FireServer" and self:IsA("RemoteEvent"))
-                or (method == "InvokeServer" and self:IsA("RemoteFunction"))
-                or (method == "FireServer" and tostring(self.ClassName):find("Unreliable") ~= nil) then
+                or (method == "InvokeServer" and self:IsA("RemoteFunction")) then
                 local args = {...}
                 local parentName = self.Parent and self.Parent.Name or "?"
-                addLog("📤 OUT(namecall) @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
+                addLog("📤 OUT(nc) @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
             end
             return oldNamecall(self, ...)
         end)
 
-        -- ٢. مراقبة كل الريموتات المعروفة والجديدة!
-        local remotesToWatch = {}
-        local function watchRemote(obj)
-            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") or obj:IsA("UnreliableRemoteEvent") then
-                remotesToWatch[obj] = true
-            end
-        end
-        local function scanForRemotes(folder, depth)
-            if depth > 4 then return end
-            pcall(function()
-                for _, obj in pairs(folder:GetChildren()) do
-                    watchRemote(obj)
-                    scanForRemotes(obj, depth + 1)
+        -- ٢. هوك Index — يلتقط remote.FireServer(...) بالنقطة!
+        local oldIndex
+        oldIndex = hookmetamethod(game, "__index", function(self, key)
+            local val = oldIndex(self, key)
+            if key == "FireServer" and typeof(val) == "function" and pcall(function() return self:IsA("RemoteEvent") end) and self:IsA("RemoteEvent") then
+                return function(...)
+                    local args = {...}
+                    local parentName = self.Parent and self.Parent.Name or "?"
+                    addLog("📤 OUT(idx) @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
+                    return val(table.unpack(args))
                 end
-            end)
-        end
-        scanForRemotes(game.ReplicatedStorage, 0)
-        scanForRemotes(workspace, 0)
-
-        -- نراقب حتى الجديدة التي تُنشأ لاحقاً!
-        game.DescendantAdded:Connect(function(obj)
-            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") or obj:IsA("UnreliableRemoteEvent") then
-                watchRemote(obj)
+            elseif key == "InvokeServer" and typeof(val) == "function" and pcall(function() return self:IsA("RemoteFunction") end) and self:IsA("RemoteFunction") then
+                return function(...)
+                    local args = {...}
+                    local parentName = self.Parent and self.Parent.Name or "?"
+                    addLog("📤 OUT(idx) @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
+                    return val(table.unpack(args))
+                end
             end
-        end)
-
-        -- ٣. ربط يدوي بكل Remote معروف + الجديد!
-        task.spawn(function()
-            while true do
-                pcall(function()
-                    for remote, _ in pairs(remotesToWatch) do
-                        if remote.Parent == nil then
-                            remotesToWatch[remote] = nil
-                        elseif not remote:GetAttribute("BrlinHooked") then
-                            remote:SetAttribute("BrlinHooked", true)
-                            if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
-                                local rPath = remote:GetFullName():sub(1, 60)
-                                remote.OnClientEvent:Connect(function(...)
-                                    addLog("📥 IN2 " .. rPath .. argsToString({...}))
-                                end)
-                            end
-                        end
-                    end
-                end)
-                task.wait(2)
-            end
+            return val
         end)
     end)
     if not ok then
@@ -166,7 +139,7 @@ local function hookOutgoing()
     return ok
 end
 
--- التجسس على الوارد — كل الريموتات في اللعبة كلها!
+-- التجسس على الوارد — مستمع واحد فقط لكل ريموت!
 local function hookIncoming()
     local ok = pcall(function()
         local function listen(folder, path, depth)
@@ -198,8 +171,8 @@ local function showLiveWindow()
 
         local LF = Instance.new("Frame")
         LF.Name = "LiveFrame"
-        LF.Size = UDim2.new(0, 340, 0, 320)
-        LF.Position = UDim2.new(0, 260, 0, 200)
+        LF.Size = UDim2.new(0, 340, 0, 340)
+        LF.Position = UDim2.new(0, 260, 0, 180)
         LF.BackgroundColor3 = Color3.fromRGB(30, 15, 15)
         LF.Active = true
         LF.Draggable = true
@@ -230,15 +203,15 @@ local function showLiveWindow()
         liveScroll.Parent = LF
 
         local count = #liveMessages
-        liveScroll.CanvasSize = UDim2.new(0, 0, 0, count * 26)
-        local startI = math.max(1, count - 30)
+        liveScroll.CanvasSize = UDim2.new(0, 0, 0, count * 44)
+        local startI = math.max(1, count - 20)
         local row = 0
         for i = startI, count do
             row = row + 1
             local isOut = string.find(liveMessages[i], "📤", 1, true) ~= nil
             local lbl = Instance.new("TextLabel")
-            lbl.Size = UDim2.new(1, -8, 0, 26)
-            lbl.Position = UDim2.new(0, 4, 0, (row - 1) * 26)
+            lbl.Size = UDim2.new(1, -8, 0, 42)
+            lbl.Position = UDim2.new(0, 4, 0, (row - 1) * 44)
             lbl.Text = liveMessages[i]
             lbl.TextColor3 = isOut and Color3.fromRGB(100, 220, 255) or Color3.fromRGB(255, 255, 150)
             lbl.BackgroundTransparency = 1
@@ -375,8 +348,8 @@ end)
 --------------------------------------------------------------------
 game.StarterGui:SetCore("SendNotification", {
     Title = "🧠 Brlin Funny Gamer",
-    Text = "v2.1 Loaded ✅",
+    Text = "v2.2 Loaded ✅",
     Duration = 5
 })
 
-print("🧠 Brlin v2.1 Loaded! ✅")
+print("🧠 Brlin v2.2 Loaded! ✅")
