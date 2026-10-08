@@ -1,9 +1,10 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   v2.2 — Teleport + Full Spy (Index Hook!)
+--   v2.3 — Teleport + Full Spy + Noclip 👻
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
+local RunService = game:GetService("RunService")
 
 local function getRoot()
     local char = player.Character or player.CharacterAdded:Wait()
@@ -39,6 +40,34 @@ local function clearCFrame()
     SavedCFrame = nil
     if writefile and isfile and isfile(SAVE_FILE) then
         pcall(function() delfile(SAVE_FILE) end)
+    end
+end
+
+--------------------------------------------------------------------
+-- 👻 Noclip — المرور عبر جدران الليزر!
+--------------------------------------------------------------------
+local noclipOn = false
+local noclipConn = nil
+
+local function setNoclip(on)
+    noclipOn = on
+    if noclipConn then
+        noclipConn:Disconnect()
+        noclipConn = nil
+    end
+    if on then
+        noclipConn = RunService.Stepped:Connect(function()
+            pcall(function()
+                local char = player.Character
+                if char then
+                    for _, part in pairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end)
+        end)
     end
 end
 
@@ -95,10 +124,8 @@ local function addLog(msg)
     end)
 end
 
--- التجسس الشامل على الصادر — Namecall + Index!
 local function hookOutgoing()
     local ok, err = pcall(function()
-        -- ١. هوك Namecall — يلتقط remote:FireServer()
         local oldNamecall
         oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
             local method = getnamecallmethod()
@@ -106,40 +133,17 @@ local function hookOutgoing()
                 or (method == "InvokeServer" and self:IsA("RemoteFunction")) then
                 local args = {...}
                 local parentName = self.Parent and self.Parent.Name or "?"
-                addLog("📤 OUT(nc) @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
+                addLog("📤 OUT @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
             end
             return oldNamecall(self, ...)
         end)
-
-        -- ٢. هوك Index — يلتقط remote.FireServer(...) بالنقطة!
-        local oldIndex
-        oldIndex = hookmetamethod(game, "__index", function(self, key)
-            local val = oldIndex(self, key)
-            if key == "FireServer" and typeof(val) == "function" and pcall(function() return self:IsA("RemoteEvent") end) and self:IsA("RemoteEvent") then
-                return function(...)
-                    local args = {...}
-                    local parentName = self.Parent and self.Parent.Name or "?"
-                    addLog("📤 OUT(idx) @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
-                    return val(table.unpack(args))
-                end
-            elseif key == "InvokeServer" and typeof(val) == "function" and pcall(function() return self:IsA("RemoteFunction") end) and self:IsA("RemoteFunction") then
-                return function(...)
-                    local args = {...}
-                    local parentName = self.Parent and self.Parent.Name or "?"
-                    addLog("📤 OUT(idx) @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
-                    return val(table.unpack(args))
-                end
-            end
-            return val
-        end)
     end)
     if not ok then
-        addLog("❌ OUT hook failed: " .. tostring(err):sub(1, 50))
+        addLog("❌ OUT hook failed")
     end
     return ok
 end
 
--- التجسس على الوارد — مستمع واحد فقط لكل ريموت!
 local function hookIncoming()
     local ok = pcall(function()
         local function listen(folder, path, depth)
@@ -239,8 +243,8 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 255)
-Frame.Position = UDim2.new(0, 20, 0, 180)
+Frame.Size = UDim2.new(0, 220, 0, 300)
+Frame.Position = UDim2.new(0, 20, 0, 150)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 Frame.Active = true
 Frame.Draggable = true
@@ -268,6 +272,31 @@ local function updateStatus()
     Status.TextColor3 = SavedCFrame and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 80, 80)
 end
 
+-- زر تفاعلي متطور (يدعم ON/OFF بالنص!)
+local function makeToggleButton(text, yPos, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -16, 0, 34)
+    btn.Position = UDim2.new(0, 8, 0, yPos)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    btn.TextSize = 13
+    btn.Parent = Frame
+
+    local on = false
+    btn.MouseButton1Click:Connect(function()
+        on = not on
+        if on then
+            btn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
+            btn.Text = string.gsub(text, "%[OFF%]", "[ON]")
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+            btn.Text = string.gsub(text, "%[ON%]", "[OFF]")
+        end
+        callback(on)
+    end)
+end
+
 local function makeButton(text, yPos, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -16, 0, 34)
@@ -281,7 +310,7 @@ local function makeButton(text, yPos, callback)
 end
 
 --------------------------------------------------------------------
--- الأزرار الخمسة
+-- الأزرار
 --------------------------------------------------------------------
 
 makeButton("📍  Set", 55, function()
@@ -331,7 +360,16 @@ makeButton("🗑️  Remove Teleport", 133, function()
     })
 end)
 
-makeButton("📡  Full Spy — تشغيل الشامل!", 172, function()
+makeToggleButton("👻 Noclip [OFF]", 172, function(on)
+    setNoclip(on)
+    game.StarterGui:SetCore("SendNotification", {
+        Title = on and "👻 Noclip ON!" or "👻 Noclip OFF",
+        Text = on and "تمشي عبر الجدران والليزر!" or "الجدران صلبة مجدداً",
+        Duration = 3
+    })
+end)
+
+makeButton("📡  Full Spy", 211, function()
     if not spyActive then
         local outOk = hookOutgoing()
         local inOk = hookIncoming()
@@ -341,15 +379,15 @@ makeButton("📡  Full Spy — تشغيل الشامل!", 172, function()
     showLiveWindow()
 end)
 
-makeButton("📜  عرض رسائل التجسس", 211, function()
+makeButton("📜  عرض رسائل التجسس", 250, function()
     showLiveWindow()
 end)
 
 --------------------------------------------------------------------
 game.StarterGui:SetCore("SendNotification", {
     Title = "🧠 Brlin Funny Gamer",
-    Text = "v2.2 Loaded ✅",
+    Text = "v2.3 + Noclip Loaded ✅",
     Duration = 5
 })
 
-print("🧠 Brlin v2.2 Loaded! ✅")
+print("🧠 Brlin v2.3 Loaded! ✅")
