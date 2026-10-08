@@ -1,199 +1,255 @@
 -- ═══════════════════════════════════════════════
---   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   ⚡ Auto-Return Home v1.0
+--   🧠 Brlin Spy — صياد بصمة السرقة 🧠
+--   سجل كل شيء يحدث لحظة السرقة!
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
 
-local function getRoot()
-    local char = player.Character or player.CharacterAdded:Wait()
-    return char:WaitForChild("HumanoidRootPart")
-end
-
 --------------------------------------------------------------------
--- نظام الحفظ الدائم
+-- سجل الرسائل
 --------------------------------------------------------------------
-local SAVE_FILE = "BrlinTP.txt"
-local SavedCFrame = nil
+local liveMessages = {}
+local liveScroll = nil
+local liveTitle = nil
 
-if writefile and readfile and isfile and isfile(SAVE_FILE) then
-    local ok, data = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(readfile(SAVE_FILE))
-    end)
-    if ok and data then
-        SavedCFrame = CFrame.new(data[1], data[2], data[3])
+local function argsToString(args)
+    local info = ""
+    for i, arg in ipairs(args) do
+        local t = typeof(arg)
+        local v = tostring(arg)
+        if #v > 200 then v = v:sub(1, 200) .. "..." end
+        info = info .. " [" .. i .. "]" .. t .. ":" .. v
     end
+    if info == "" then info = " (empty)" end
+    return info
 end
 
-local function saveCFrame(cf)
-    SavedCFrame = cf
-    if writefile then
-        pcall(function()
-            local pos = cf.Position
-            writefile(SAVE_FILE, game:GetService("HttpService"):JSONEncode({pos.X, pos.Y, pos.Z}))
-        end)
+local function addLog(msg)
+    table.insert(liveMessages, msg)
+    if #liveMessages > 150 then
+        table.remove(liveMessages, 1)
     end
-end
-
-local function clearCFrame()
-    SavedCFrame = nil
-    if writefile and isfile and isfile(SAVE_FILE) then
-        pcall(function() delfile(SAVE_FILE) end)
-    end
-end
-
---------------------------------------------------------------------
--- ⚡ العقل الخفي — كاشف الالتقاط!
---------------------------------------------------------------------
-local autoReturn = false
-local returning = false
-local conn = nil
-
-local function returnHome()
-    if returning then return end
-    if SavedCFrame == nil then return end
-    returning = true
     pcall(function()
-        local root = getRoot()
-        root.Anchored = true
-        task.wait()
-        root.CFrame = SavedCFrame + Vector3.new(0, 3, 0)
-        task.wait(0.1)
-        root.Anchored = false
-        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
-    end)
-    returning = false
-end
-
-local function watchCarry()
-    if conn then conn:Disconnect(); conn = nil end
-    conn = player.Character.ChildAdded:Connect(function(child)
-        if not autoReturn then return end
-        -- عنصر الربط (Weld/Attachment/BodyPosition...) = أمسكت حيواناً!
-        if child:IsA("Weld") or child:IsA("WeldConstraint")
-            or child:IsA("BodyPosition") or child:IsA("AlignPosition") then
-            -- نتحقق أن العنصر يربط بـ HumanoidRootPart (جسدك)
-            pcall(function()
-                if child.Part0 == getRoot() or child.Part1 == getRoot() then
-                    -- ⚡ سرقة موثقة! نرجع فوراً!
-                    task.wait(0.05)
-                    returnHome()
-                    game.StarterGui:SetCore("SendNotification", {
-                        Title = "⚡ Auto Return!",
-                        Text = "سرقت! رجعناك لقاعدتك فوراً ✅",
-                        Duration = 3
-                    })
-                end
-            end)
-        end
-    end)
-end
-
--- عند دخولك/ respawn نشاهد من جديد
-if player.Character then watchCarry() end
-player.CharacterAdded:Connect(function()
-    task.wait(1)
-    watchCarry()
-end)
-
--- خطة احتياطية ثانية: مراقبة Backpack/Carry في العالم!
-workspace.DescendantAdded:Connect(function(obj)
-    if not autoReturn then return end
-    pcall(function()
-        -- بعض الألعاب تضع الحيوان في حوزتك مباشرة!
-        if obj:IsA("Model") and obj.Name:find("Brainrot") then
-            local holder = obj:FindFirstChildWhichIsA("Weld")
-            if holder and (holder.Part0 == getRoot() or holder.Part1 == getRoot()) then
-                task.wait(0.05)
-                returnHome()
+        if liveScroll and liveScroll.Parent then
+            liveScroll:ClearAllChildren()
+            local count = #liveMessages
+            liveScroll.CanvasSize = UDim2.new(0, 0, 0, count * 44)
+            local startI = math.max(1, count - 20)
+            local row = 0
+            for i = startI, count do
+                row = row + 1
+                local isOut = string.find(liveMessages[i], "📤", 1, true) ~= nil
+                local isGrab = string.find(liveMessages[i], "✊", 1, true) ~= nil
+                local color = Color3.fromRGB(255, 255, 150)
+                if isOut then color = Color3.fromRGB(100, 220, 255)
+                elseif isGrab then color = Color3.fromRGB(150, 255, 150) end
+                local lbl = Instance.new("TextLabel")
+                lbl.Size = UDim2.new(1, -8, 0, 42)
+                lbl.Position = UDim2.new(0, 4, 0, (row - 1) * 44)
+                lbl.Text = liveMessages[i]
+                lbl.TextColor3 = color
+                lbl.BackgroundTransparency = 1
+                lbl.TextSize = 11
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+                lbl.TextWrapped = true
+                lbl.Parent = liveScroll
+            end
+            if liveTitle then
+                liveTitle.Text = "📡 Spy — " .. count .. " msgs"
             end
         end
     end)
-end)
+end
+
+--------------------------------------------------------------------
+-- ١) هوك الصادر — Namecall + Index (الناجح!)
+--------------------------------------------------------------------
+local function hookOutgoing()
+    pcall(function()
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if (method == "FireServer" and self:IsA("RemoteEvent"))
+                or (method == "InvokeServer" and self:IsA("RemoteFunction")) then
+                local args = {...}
+                local parentName = self.Parent and self.Parent.Name or "?"
+                addLog("📤 OUT @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
+            end
+            return oldNamecall(self, ...)
+        end)
+
+        local oldIndex
+        oldIndex = hookmetamethod(game, "__index", function(self, key)
+            local val = oldIndex(self, key)
+            if key == "FireServer" and typeof(val) == "function"
+                and pcall(function() return self:IsA("RemoteEvent") end)
+                and self:IsA("RemoteEvent") then
+                return function(...)
+                    local args = {...}
+                    local parentName = self.Parent and self.Parent.Name or "?"
+                    addLog("📤 OUT(idx) @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
+                    return val(table.unpack(args))
+                end
+            elseif key == "InvokeServer" and typeof(val) == "function"
+                and pcall(function() return self:IsA("RemoteFunction") end)
+                and self:IsA("RemoteFunction") then
+                return function(...)
+                    local args = {...}
+                    local parentName = self.Parent and self.Parent.Name or "?"
+                    addLog("📤 OUT(idx) @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
+                    return val(table.unpack(args))
+                end
+            end
+            return val
+        end)
+        addLog("✅ OUT hooks ON (namecall + index)")
+    end)
+end
+
+--------------------------------------------------------------------
+-- ٢) هوك الوارد — كل الريموتات
+--------------------------------------------------------------------
+local function hookIncoming()
+    pcall(function()
+        local function listen(folder, path, depth)
+            if depth > 4 then return end
+            for _, obj in pairs(folder:GetChildren()) do
+                if obj:IsA("RemoteEvent") or obj:IsA("UnreliableRemoteEvent") then
+                    local rPath = path .. "/" .. obj.Name
+                    obj.OnClientEvent:Connect(function(...)
+                        addLog("📥 IN " .. rPath .. argsToString({...}))
+                    end)
+                end
+                listen(obj, path .. "/" .. obj.Name, depth + 1)
+            end
+        end
+        listen(game.ReplicatedStorage, "RS", 0)
+        listen(workspace, "WS", 0)
+        addLog("✅ IN hooks ON")
+    end)
+end
+
+--------------------------------------------------------------------
+-- ٣) مراقبة أزرار السرقة (ProximityPrompt)!
+--------------------------------------------------------------------
+local function hookPrompts()
+    pcall(function()
+        local function listenPrompts(folder, depth)
+            if depth > 5 then return end
+            for _, obj in pairs(folder:GetChildren()) do
+                if obj:IsA("ProximityPrompt") then
+                    obj.Triggered:Connect(function(who)
+                        if who == player then
+                            addLog("✊ PROMPT TRIGGERED: " .. obj.Name .. " @" .. (obj.Parent and obj.Parent.Name or "?"))
+                        end
+                    end)
+                    obj.PromptButtonHoldEnded:Connect(function(who)
+                        if who == player then
+                            addLog("✊ PROMPT hold END: " .. obj.Name)
+                        end
+                    end)
+                end
+                listenPrompts(obj, depth + 1)
+            end
+        end
+        listenPrompts(workspace, 0)
+        addLog("✅ PROMPT hooks ON")
+    end)
+end
+
+--------------------------------------------------------------------
+-- ٤) مراقبة ما يدخل شخصيتك (الالتقاط!)
+--------------------------------------------------------------------
+local function hookCarry()
+    pcall(function()
+        local function watch(char)
+            char.ChildAdded:Connect(function(child)
+                addLog("✊ CHAR +" .. child.ClassName .. ":" .. child.Name)
+            end)
+            char.ChildRemoved:Connect(function(child)
+                addLog("✊ CHAR -" .. child.ClassName .. ":" .. child.Name)
+            end)
+        end
+        if player.Character then watch(player.Character) end
+        player.CharacterAdded:Connect(watch)
+        addLog("✅ CHAR monitor ON")
+    end)
+end
+
+--------------------------------------------------------------------
+-- ٥) مراقبة الحيوانات الجديدة كلها (رسائل الأحداث)
+--------------------------------------------------------------------
+local function hookWorld()
+    pcall(function()
+        workspace.DescendantAdded:Connect(function(obj)
+            if obj:IsA("ProximityPrompt") then
+                addLog("✊ NEW PROMPT @[" .. (obj.Parent and obj.Parent.Name or "?") .. "]")
+            end
+        end)
+        addLog("✅ WORLD monitor ON")
+    end)
+end
 
 --------------------------------------------------------------------
 -- تدمير أي لوحة قديمة
 --------------------------------------------------------------------
-if game.CoreGui:FindFirstChild("BrlinGui") then
-    game.CoreGui:FindFirstChild("BrlinGui"):Destroy()
+if game.CoreGui:FindFirstChild("BrlinSpyGui") then
+    game.CoreGui:FindFirstChild("BrlinSpyGui"):Destroy()
 end
 
 --------------------------------------------------------------------
--- الواجهة — زران فقط
+-- الواجهة
 --------------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BrlinGui"
+ScreenGui.Name = "BrlinSpyGui"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 140)
-Frame.Position = UDim2.new(0, 20, 0, 220)
-Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+Frame.Size = UDim2.new(0, 340, 0, 340)
+Frame.Position = UDim2.new(0, 20, 0, 150)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 15, 15)
 Frame.Active = true
 Frame.Draggable = true
 Frame.Parent = ScreenGui
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 35)
-Title.Text = "🧠 Brlin Funny Gamer 🧠"
-Title.TextColor3 = Color3.fromRGB(0, 255, 127)
-Title.BackgroundTransparency = 1
-Title.TextSize = 15
-Title.Parent = Frame
+liveTitle = Instance.new("TextLabel")
+liveTitle.Size = UDim2.new(1, 0, 0, 30)
+liveTitle.Text = "📡 Steal Spy — صياد البصمة"
+liveTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
+liveTitle.BackgroundTransparency = 1
+liveTitle.TextSize = 14
+liveTitle.Parent = Frame
 
-local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, 0, 0, 20)
-Status.Position = UDim2.new(0, 0, 0, 30)
-Status.Text = SavedCFrame and "📍 Saved ✓" or "❌ No Save"
-Status.TextColor3 = SavedCFrame and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 80, 80)
-Status.BackgroundTransparency = 1
-Status.TextSize = 13
-Status.Parent = Frame
+local legend = Instance.new("TextLabel")
+legend.Size = UDim2.new(1, 0, 0, 18)
+legend.Position = UDim2.new(0, 0, 0, 26)
+legend.Text = "📤 صادر | 📥 وارد | ✊ زر/التقاط"
+legend.TextColor3 = Color3.fromRGB(200, 200, 200)
+legend.BackgroundTransparency = 1
+legend.TextSize = 11
+legend.Parent = Frame
 
-local function updateStatus()
-    Status.Text = SavedCFrame and "📍 Saved ✓" or "❌ No Save"
-    Status.TextColor3 = SavedCFrame and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 80, 80)
-end
-
-local function makeButton(text, yPos, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -16, 0, 34)
-    btn.Position = UDim2.new(0, 8, 0, yPos)
-    btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-    btn.TextSize = 13
-    btn.Parent = Frame
-    btn.MouseButton1Click:Connect(callback)
-end
+liveScroll = Instance.new("ScrollingFrame")
+liveScroll.Size = UDim2.new(1, -10, 1, -55)
+liveScroll.Position = UDim2.new(0, 5, 0, 45)
+liveScroll.BackgroundColor3 = Color3.fromRGB(15, 8, 8)
+liveScroll.ScrollBarThickness = 6
+liveScroll.Parent = Frame
 
 --------------------------------------------------------------------
--- الزران
+-- تشغيل كل المراقبات فوراً!
 --------------------------------------------------------------------
+hookOutgoing()
+hookIncoming()
+hookPrompts()
+hookCarry()
+hookWorld()
 
-makeButton("📍  Set", 55, function()
-    local root = getRoot()
-    saveCFrame(root.CFrame)
-    updateStatus()
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "📍 Saved!",
-        Text = "قاعدتك محفوظة — اذهب واسرق! ⚡",
-        Duration = 3
-    })
-end)
+addLog("🧠 كل المراقبات شغالة! الآن اسرق حيواناً وسجل كل شيء!")
 
-makeButton("🗑️  Remove Tp", 94, function()
-    clearCFrame()
-    updateStatus()
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "🗑️ Cleared!",
-        Text = "All saves removed ❌",
-        Duration = 3
-    })
-end)
-
---------------------------------------------------------------------
-notify("🧠 Brlin Funny Gamer", "Auto-Return Ready ✅")
-print("🧠 Brlin Auto-Return Loaded! ✅")
+game.StarterGui:SetCore("SendNotification", {
+    Title = "🧠 Steal Spy",
+    Text = "المراقبة شغالة — اسرق الآن! ✅",
+    Duration = 5
+})
