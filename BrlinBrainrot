@@ -1,9 +1,13 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   ⚡ MAX SPEED — كل سرعات اللعبة!
+--   ⚡ MAX SPEED v2 — يشمل سرعة الحمل!
 -- ═══════════════════════════════════════════════
+local RunService = game:GetService("RunService")
 
 local player = game.Players.LocalPlayer
+
+-- ⚙️ السرعة (عدّل الرقم كما تحب: 100 هادئة، 150 سريعة، 200 صاروخ!)
+local SPEED_VALUE = 150
 
 local function notify(title, text)
     pcall(function()
@@ -14,67 +18,114 @@ local function notify(title, text)
 end
 
 --------------------------------------------------------------------
--- ⚡ محرك السرعة الشامل
+-- ⚡ محرك السرعة
 --------------------------------------------------------------------
 local speedOn = false
-local speedConn = nil
-local SPEED_VALUE = 300  -- القصوى العملية (أعلى منها = تطرش من الخريطة!)
+local watchConn = nil
+local beatConn = nil
 
+-- نربط مراقبة لحظية على الـ Humanoid نفسه!
+local function armHumanoid(hum)
+    pcall(function()
+        hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+            if speedOn and hum.WalkSpeed < SPEED_VALUE then
+                hum.WalkSpeed = SPEED_VALUE
+            end
+        end)
+        hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
+            if speedOn and hum.JumpPower < 120 then
+                hum.JumpPower = 120
+            end
+        end)
+    end)
+end
+
+-- تطبيق أقصى سرعة على الشخصية + الحيوان المحمول!
 local function maxEverything(char)
     pcall(function()
-        -- ١. سرعة المشي العادية
+        -- ١. سرعتك أنت
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
-            hum.WalkSpeed = SPEED_VALUE
-            hum.JumpPower = 120
+            if hum.WalkSpeed < SPEED_VALUE then hum.WalkSpeed = SPEED_VALUE end
+            if hum.JumpPower < 120 then hum.JumpPower = 120 end
         end
 
-        -- ٢. سرعة الحمل (BodyVelocity المربوط بجسدك أثناء حمل الحيوان!)
+        -- ٢. سرعة أي شيء محمول بيدك (الحيوان المسروق له Humanoid أيضاً أحياناً!)
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj:IsA("Model") then
+                pcall(function()
+                    -- هل هذا الحيوان مربوط بجسدك (أنت حامله)؟
+                    local weld = obj:FindFirstChildWhichIsA("Weld", true)
+                        or obj:FindFirstChildWhichIsA("WeldConstraint", true)
+                    if weld then
+                        local myRoot = char:FindFirstChild("HumanoidRootPart")
+                        if myRoot and (weld.Part0 == myRoot or weld.Part1 == myRoot) then
+                            local hisHum = obj:FindFirstChildOfClass("Humanoid")
+                            if hisHum and hisHum.WalkSpeed < SPEED_VALUE then
+                                hisHum.WalkSpeed = SPEED_VALUE
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+
+        -- ٣. كسر قيود الحمل (BodyVelocity البطيء!)
         for _, v in pairs(char:GetDescendants()) do
             if v:IsA("BodyVelocity") then
                 v.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-                v.Velocity = v.Velocity.Unit * SPEED_VALUE
-            elseif v:IsA("AlignPosition") then
-                v.MaxForce = 1e9
             end
         end
     end)
 end
 
 local function setSpeed(on)
-    if speedConn then
-        speedConn:Disconnect()
-        speedConn = nil
-    end
+    -- فك كل المراقبات القديمة
+    if watchConn then watchConn:Disconnect(); watchConn = nil end
+    if beatConn then beatConn:Disconnect(); beatConn = nil end
 
     if on then
-        -- تطبيق فوري
+        -- ١. سلاح جسدك الحالي
         pcall(function()
-            if player.Character then maxEverything(player.Character) end
+            local char = player.Character
+            if char then
+                maxEverything(char)
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then armHumanoid(hum) end
+            end
         end)
 
-        -- 🔥 الحراسة المستمرة:
-        -- أي شيء جديد في شخصيتك → نسرعوه!
-        -- أي تغيير سرعة من اللعبة → نعيدها القصوى!
-        speedConn = RunService or game:GetService("RunService")
-        speedConn = speedConn.Heartbeat:Connect(function()
+        -- ٢. حراسة كل إطار (60 مرة بالثانية!)
+        beatConn = RunService.Heartbeat:Connect(function()
             pcall(function()
                 local char = player.Character
                 if char then maxEverything(char) end
             end)
         end)
 
-        -- ومراقبة الشخصية الجديدة عند Respawn
+        -- ٣. حراسة الشخصية الجديدة عند Respawn
         player.CharacterAdded:Connect(function(char)
-            if speedOn then
-                task.wait(0.5)
-                maxEverything(char)
-                char:WaitForChild("Humanoid")
-                char.Humanoid.WalkSpeed = SPEED_VALUE
+            if not speedOn then return end
+            task.wait(0.5)
+            maxEverything(char)
+            pcall(function() armHumanoid(char:WaitForChild("Humanoid")) end)
+        end)
+
+        -- ٤. راقب أي Humanoid جديد يظهر في العالم (الحيوانات المنسوخة!)
+        watchConn = workspace.DescendantAdded:Connect(function(obj)
+            if not speedOn then return end
+            if obj:IsA("Humanoid") then
+                task.wait(0.1)
+                armHumanoid(obj)
+                pcall(function()
+                    if obj.WalkSpeed < SPEED_VALUE and obj.WalkSpeed > 0 then
+                        obj.WalkSpeed = SPEED_VALUE
+                    end
+                end)
             end
         end)
     else
-        -- إيقاف: نرجع السرعة الطبيعية
+        -- إيقاف: نرجع الطبيعي
         pcall(function()
             local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
             if hum then
@@ -93,7 +144,7 @@ if game.CoreGui:FindFirstChild("BrlinGui") then
 end
 
 --------------------------------------------------------------------
--- الواجهة — زر واحد فقط
+-- الواجهة — زر واحد
 --------------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BrlinGui"
@@ -131,15 +182,15 @@ btn.MouseButton1Click:Connect(function()
         btn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
         btn.Text = "⚡ MAX SPEED [ON]"
         setSpeed(true)
-        notify("⚡ MAX SPEED ON!", "أنت أسرع من طيارة! حتى بالحمل! ✈️")
+        notify("⚡ MAX SPEED ON!", "سرعتك + سرعة حملك = القصوى! ✈️")
     else
         btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
         btn.Text = "⚡ MAX SPEED [OFF]"
         setSpeed(false)
-        notify("⚡ Speed OFF", "رجعت سرعتك الطبيعية", 3)
+        notify("⚡ Speed OFF", "رجعت الطبيعية", 3)
     end
 end)
 
 --------------------------------------------------------------------
-notify("🧠 Brlin Funny Gamer", "MAX SPEED Loaded ✅")
-print("🧠 Brlin Max Speed Loaded! ✅")
+notify("🧠 Brlin Funny Gamer", "MAX SPEED v2 Loaded ✅")
+print("🧠 Brlin Max Speed v2 Loaded! ✅")
