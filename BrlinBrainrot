@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   v1.6 — Universal Spy (كل شيء يُسمع!)
+--   v1.6 — Teleport + Full Spy + Hook Test 🧪
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -76,28 +76,28 @@ local function toggleStay(on)
 end
 
 --------------------------------------------------------------------
--- 📡 نظام التجسس الشامل v2 — Universal!
+-- 📡 نظام التجسس الشامل
 --------------------------------------------------------------------
 local liveMessages = {}
 local liveScroll = nil
 local liveTitle = nil
 local spyActive = false
 
-local function argsToString(args, prefix)
-    local info = prefix
+local function argsToString(args)
+    local info = ""
     for i, arg in ipairs(args) do
         local t = typeof(arg)
         local v = tostring(arg)
-        if #v > 50 then v = v:sub(1, 50) .. "..." end
+        if #v > 40 then v = v:sub(1, 40) .. "..." end
         info = info .. " [" .. i .. "]" .. t .. ":" .. v
     end
-    if info == prefix then info = info .. " (empty)" end
+    if info == "" then info = " (empty)" end
     return info
 end
 
 local function addLog(msg)
     table.insert(liveMessages, msg)
-    if #liveMessages > 200 then
+    if #liveMessages > 150 then
         table.remove(liveMessages, 1)
     end
     pcall(function()
@@ -105,16 +105,20 @@ local function addLog(msg)
             liveScroll:ClearAllChildren()
             local count = #liveMessages
             liveScroll.CanvasSize = UDim2.new(0, 0, 0, count * 26)
-            local startI = math.max(1, count - 40)
+            local startI = math.max(1, count - 30)
             local row = 0
             for i = startI, count do
                 row = row + 1
                 local isOut = string.find(liveMessages[i], "📤", 1, true) ~= nil
+                local isTest = string.find(liveMessages[i], "🧪", 1, true) ~= nil
+                local color = Color3.fromRGB(255, 255, 150)
+                if isOut then color = Color3.fromRGB(100, 220, 255)
+                elseif isTest then color = Color3.fromRGB(255, 150, 255) end
                 local lbl = Instance.new("TextLabel")
                 lbl.Size = UDim2.new(1, -8, 0, 26)
                 lbl.Position = UDim2.new(0, 4, 0, (row - 1) * 26)
                 lbl.Text = liveMessages[i]
-                lbl.TextColor3 = isOut and Color3.fromRGB(100, 220, 255) or Color3.fromRGB(255, 255, 150)
+                lbl.TextColor3 = color
                 lbl.BackgroundTransparency = 1
                 lbl.TextSize = 11
                 lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -128,76 +132,56 @@ local function addLog(msg)
     end)
 end
 
--- (أ) Universal Hook — يلتقط كل FireServer حتى للريموتات الجديدة!
-local function hookUniversalOut()
+-- (أ) التجسس على الصادر
+local function hookOutgoing()
     local ok, err = pcall(function()
-        local mt = getrawmetatable(game)
-        setreadonly(mt, false)
-        
-        local oldNamecall = mt.__namecall
-        mt.__namecall = newcclosure(function(self, ...)
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
             local method = getnamecallmethod()
-            if spyActive and self and (method == "FireServer" or method == "InvokeServer") then
-                local okP, className = pcall(function() return self.ClassName end)
-                if okP and (className == "RemoteEvent" or className == "RemoteFunction") then
-                    local okP2, path = pcall(function() return self:GetFullName() end)
-                    local args = {...}
-                    addLog("📤 OUT " .. method .. " " .. (okP2 and path or self.Name) .. argsToString(args, ""))
-                end
+            if (method == "FireServer" and self:IsA("RemoteEvent"))
+                or (method == "InvokeServer" and self:IsA("RemoteFunction")) then
+                local args = {...}
+                local path = self:GetFullName():sub(1, 70)
+                addLog("📤 OUT " .. method .. " " .. path .. argsToString(args))
             end
             return oldNamecall(self, ...)
         end)
-        setreadonly(mt, true)
     end)
     if not ok then
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "⚠️ Universal Hook Failed",
-            Text = tostring(err):sub(1, 60),
-            Duration = 5
-        })
+        addLog("❌ OUT hook failed: " .. tostring(err):sub(1, 50))
     end
     return ok
 end
 
--- (ب) الوارد — كل الريموتات في كل مكان!
+-- (ب) التجسس على الوارد
 local function hookIncoming()
     local ok, err = pcall(function()
         local function listen(folder, path, depth)
-            if depth > 5 then return end
+            if depth > 4 then return end
             for _, obj in pairs(folder:GetChildren()) do
                 if obj:IsA("RemoteEvent") then
                     local rPath = path .. "/" .. obj.Name
-                    pcall(function()
-                        obj.OnClientEvent:Connect(function(...)
-                            if spyActive then
-                                addLog("📥 IN " .. rPath .. argsToString({...}, ""))
-                            end
-                        end)
+                    obj.OnClientEvent:Connect(function(...)
+                        addLog("📥 IN " .. rPath .. argsToString({...}))
                     end)
                 end
                 listen(obj, path .. "/" .. obj.Name, depth + 1)
             end
         end
         listen(game.ReplicatedStorage, "RS", 0)
-        listen(workspace, "WS", 1)
     end)
     return ok
 end
 
--- (ج) الحركة
+-- (ج) رصد القفز والحركة
 local function hookMovement()
-    local ok, err = pcall(function()
+    local ok = pcall(function()
         local function watchHumanoid(hum)
             hum.StateChanged:Connect(function(old, new)
-                if not spyActive then return end
                 if new == Enum.HumanoidStateType.Jumping then
-                    addLog("🏃 MOVEMENT: Jumped! 🦘")
-                elseif new == Enum.HumanoidStateType.Freefall then
-                    addLog("🏃 MOVEMENT: Falling!")
-                elseif new == Enum.HumanoidStateType.Landed then
-                    addLog("🏃 MOVEMENT: Landed!")
+                    addLog("🏃 Jumped! 🦘")
                 elseif new == Enum.HumanoidStateType.Dead then
-                    addLog("💀 MOVEMENT: DIED!")
+                    addLog("💀 DIED!")
                 end
             end)
         end
@@ -208,10 +192,27 @@ local function hookMovement()
         player.CharacterAdded:Connect(function(char)
             local hum = char:WaitForChild("Humanoid")
             watchHumanoid(hum)
-            if spyActive then addLog("🔄 RESPAWNED!") end
+            addLog("🔄 RESPAWNED!")
         end)
     end)
     return ok
+end
+
+--------------------------------------------------------------------
+-- 🧪 اختبار حياة الهوك
+--------------------------------------------------------------------
+local function testHook()
+    addLog("🧪 TEST 1: أنشئ Remote وهمي وأرسل FireServer...")
+    pcall(function()
+        local testRemote = Instance.new("RemoteEvent")
+        testRemote.Name = "BrlinTestRemote"
+        testRemote.Parent = game.ReplicatedStorage
+        task.wait(0.1)
+        testRemote:FireServer("HelloFromBrlin", 123)
+        task.wait(0.2)
+        testRemote:Destroy()
+        addLog("🧪 TEST 2: أُرسل! هل ظهرت رسالة زرقاء 📤 فوق؟")
+    end)
 end
 
 --------------------------------------------------------------------
@@ -310,7 +311,7 @@ local function showLiveWindow()
         local legend = Instance.new("TextLabel")
         legend.Size = UDim2.new(1, 0, 0, 18)
         legend.Position = UDim2.new(0, 0, 0, 26)
-        legend.Text = "📤 out (أنت) | 📥 in (سيرفر)"
+        legend.Text = "📤 out | 📥 in | 🏃 move | 🧪 test"
         legend.TextColor3 = Color3.fromRGB(200, 200, 200)
         legend.BackgroundTransparency = 1
         legend.TextSize = 11
@@ -325,16 +326,20 @@ local function showLiveWindow()
 
         local count = #liveMessages
         liveScroll.CanvasSize = UDim2.new(0, 0, 0, count * 26)
-        local startI = math.max(1, count - 40)
+        local startI = math.max(1, count - 30)
         local row = 0
         for i = startI, count do
             row = row + 1
             local isOut = string.find(liveMessages[i], "📤", 1, true) ~= nil
+            local isTest = string.find(liveMessages[i], "🧪", 1, true) ~= nil
+            local color = Color3.fromRGB(255, 255, 150)
+            if isOut then color = Color3.fromRGB(100, 220, 255)
+            elseif isTest then color = Color3.fromRGB(255, 150, 255) end
             local lbl = Instance.new("TextLabel")
             lbl.Size = UDim2.new(1, -8, 0, 26)
             lbl.Position = UDim2.new(0, 4, 0, (row - 1) * 26)
             lbl.Text = liveMessages[i]
-            lbl.TextColor3 = isOut and Color3.fromRGB(100, 220, 255) or Color3.fromRGB(255, 255, 150)
+            lbl.TextColor3 = color
             lbl.BackgroundTransparency = 1
             lbl.TextSize = 11
             lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -360,8 +365,8 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 335)
-Frame.Position = UDim2.new(0, 20, 0, 120)
+Frame.Size = UDim2.new(0, 220, 0, 410)
+Frame.Position = UDim2.new(0, 20, 0, 100)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 Frame.Active = true
 Frame.Draggable = true
@@ -475,32 +480,30 @@ makeButton("🔍  Spy — كشف الأسرار", 211, function()
     showSpyResults()
 end)
 
-makeButton("📡  Universal Spy — تشغيل الشامل!", 250, function()
-    if spyActive then
-        showLiveWindow()
-        return
+makeButton("📡  Full Spy — تشغيل الشامل!", 250, function()
+    if not spyActive then
+        local outOk = hookOutgoing()
+        local inOk = hookIncoming()
+        local movOk = hookMovement()
+        spyActive = true
+        addLog("✅ Full Spy ON! (out:" .. tostring(outOk) .. " in:" .. tostring(inOk) .. " mov:" .. tostring(movOk) .. ")")
     end
-    spyActive = true
-    local outOk = hookUniversalOut()
-    local inOk = hookIncoming()
-    local movOk = hookMovement()
-    addLog("✅ Universal Spy ON! (out:" .. tostring(outOk) .. " in:" .. tostring(inOk) .. " move:" .. tostring(movOk) .. ")")
     showLiveWindow()
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "📡 Universal Spy ON!",
-        Text = "كل شيء يُسمع الآن ✅",
-        Duration = 4
-    })
 end)
 
-makeButton("📜  عرض رسائل التجسس", 289, function()
+makeButton("🧪  Test Hook — اختبار الحياة", 289, function()
+    testHook()
+    showLiveWindow()
+end)
+
+makeButton("📜  عرض رسائل التجسس", 328, function()
     showLiveWindow()
 end)
 
 --------------------------------------------------------------------
 game.StarterGui:SetCore("SendNotification", {
     Title = "🧠 Brlin Funny Gamer",
-    Text = "v1.6 Universal Spy Loaded ✅",
+    Text = "v1.6 Loaded ✅",
     Duration = 5
 })
 
