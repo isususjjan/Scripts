@@ -1,10 +1,9 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   v3.2 — TP + Noclip + Spy + Lock Radar + Prompt Steal
+--   ⚡ Legend Radar — رادار الأساطير
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
-local RunService = game:GetService("RunService")
 
 local function getRoot()
     local char = player.Character or player.CharacterAdded:Wait()
@@ -12,502 +11,111 @@ local function getRoot()
 end
 
 --------------------------------------------------------------------
--- نظام الحفظ الدائم
+-- الانتقال
 --------------------------------------------------------------------
-local SAVE_FILE = "BrlinTP.txt"
-local SavedCFrame = nil
-
-if writefile and readfile and isfile and isfile(SAVE_FILE) then
-    local ok, data = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(readfile(SAVE_FILE))
-    end)
-    if ok and data then
-        SavedCFrame = CFrame.new(data[1], data[2], data[3])
-    end
-end
-
-local function saveCFrame(cf)
-    SavedCFrame = cf
-    if writefile then
-        pcall(function()
-            local pos = cf.Position
-            writefile(SAVE_FILE, game:GetService("HttpService"):JSONEncode({pos.X, pos.Y, pos.Z}))
-        end)
-    end
-end
-
-local function clearCFrame()
-    SavedCFrame = nil
-    if writefile and isfile and isfile(SAVE_FILE) then
-        pcall(function() delfile(SAVE_FILE) end)
-    end
-end
-
---------------------------------------------------------------------
--- 👻 Noclip
---------------------------------------------------------------------
-local noclipConn = nil
-
-local function setNoclip(on)
-    if noclipConn then
-        noclipConn:Disconnect()
-        noclipConn = nil
-    end
-    if on then
-        noclipConn = RunService.Stepped:Connect(function()
-            pcall(function()
-                local char = player.Character
-                if char then
-                    for _, part in pairs(char:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                        end
-                    end
-                end
-            end)
-        end)
-    end
-end
-
---------------------------------------------------------------------
--- 📡 التجسس
---------------------------------------------------------------------
-local liveMessages = {}
-local liveScroll = nil
-local liveTitle = nil
-local spyActive = false
-
-local function argsToString(args)
-    local info = ""
-    for i, arg in ipairs(args) do
-        local t = typeof(arg)
-        local v = tostring(arg)
-        if #v > 200 then v = v:sub(1, 200) .. "..." end
-        info = info .. " [" .. i .. "]" .. t .. ":" .. v
-    end
-    if info == "" then info = " (empty)" end
-    return info
-end
-
-local function addLog(msg)
-    table.insert(liveMessages, msg)
-    if #liveMessages > 150 then
-        table.remove(liveMessages, 1)
-    end
+local function tpTo(pos)
     pcall(function()
-        if liveScroll and liveScroll.Parent then
-            liveScroll:ClearAllChildren()
-            local count = #liveMessages
-            liveScroll.CanvasSize = UDim2.new(0, 0, 0, count * 44)
-            local startI = math.max(1, count - 20)
-            local row = 0
-            for i = startI, count do
-                row = row + 1
-                local isOut = string.find(liveMessages[i], "📤", 1, true) ~= nil
-                local lbl = Instance.new("TextLabel")
-                lbl.Size = UDim2.new(1, -8, 0, 42)
-                lbl.Position = UDim2.new(0, 4, 0, (row - 1) * 44)
-                lbl.Text = liveMessages[i]
-                lbl.TextColor3 = isOut and Color3.fromRGB(100, 220, 255) or Color3.fromRGB(255, 255, 150)
-                lbl.BackgroundTransparency = 1
-                lbl.TextSize = 11
-                lbl.TextXAlignment = Enum.TextXAlignment.Left
-                lbl.TextWrapped = true
-                lbl.Parent = liveScroll
-            end
-            if liveTitle then
-                liveTitle.Text = "📡 Live Spy — " .. count .. " msgs"
-            end
+        local root = getRoot()
+        root.Anchored = true
+        task.wait()
+        root.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
+        task.wait(0.1)
+        root.Anchored = false
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+    end)
+end
+
+local function notify(title, text)
+    pcall(function()
+        game.StarterGui:SetCore("SendNotification", {
+            Title = title,
+            Text = text,
+            Duration = 5
+        })
+    end)
+end
+
+--------------------------------------------------------------------
+-- ⚡ رادار الأساطير
+--------------------------------------------------------------------
+local watching = false
+local grabUntil = 0
+local known = {}
+
+-- نسجل كل الحيوانات الموجودة حالياً
+pcall(function()
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("RemoteEvent") and obj.Name == "Remote" and obj.Parent and obj.Parent:IsA("Model") then
+            known[obj.Parent] = os.clock()
+        end
+    end
+end)
+
+local function onNewBrainrot(model)
+    pcall(function()
+        local pp = model:FindFirstChild("HumanoidRootPart")
+            or model:FindFirstChildWhichIsA("BasePart")
+        if pp then
+            tpTo(pp.Position)
+            notify("⚡ LEGENDARY!", "انتقلت إليه فوراً: " .. model.Name)
         end
     end)
 end
 
-local function hookOutgoing()
-    local ok = pcall(function()
-        local oldNamecall
-        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
-            if (method == "FireServer" and self:IsA("RemoteEvent"))
-                or (method == "InvokeServer" and self:IsA("RemoteFunction")) then
-                local args = {...}
-                local parentName = self.Parent and self.Parent.Name or "?"
-                addLog("📤 OUT @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
+-- رصد كل حيوان جديد يظهر في العالم
+workspace.DescendantAdded:Connect(function(obj)
+    pcall(function()
+        if obj:IsA("RemoteEvent") and obj.Name == "Remote" then
+            local model = obj.Parent
+            if model and model:IsA("Model") and not known[model] then
+                known[model] = os.clock()
+                if watching and os.clock() <= grabUntil then
+                    onNewBrainrot(model)
+                end
             end
-            return oldNamecall(self, ...)
-        end)
+        end
     end)
-    return ok
-end
+end)
 
-local function hookIncoming()
-    local ok = pcall(function()
-        local function listen(folder, path, depth)
-            if depth > 4 then return end
-            for _, obj in pairs(folder:GetChildren()) do
-                if obj:IsA("RemoteEvent") or obj:IsA("UnreliableRemoteEvent") then
-                    local rPath = path .. "/" .. obj.Name
-                    obj.OnClientEvent:Connect(function(...)
-                        addLog("📥 IN " .. rPath .. argsToString({...}))
+-- الاستماع لإشعار السيرفر (الذي رأيناه بالتجسس!)
+pcall(function()
+    local notif = game.ReplicatedStorage.Remotes:WaitForChild("Notification", 10)
+    if notif then
+        notif.OnClientEvent:Connect(function(text, color)
+            if not watching then return end
+            if typeof(text) == "string" then
+                local lower = string.lower(text)
+                if string.find(lower, "legendary", 1, true)
+                    or string.find(lower, "mythic", 1, true)
+                    or string.find(lower, "brainrot god", 1, true)
+                    or string.find(lower, "secret", 1, true) then
+                    grabUntil = os.clock() + 8
+                    notify("⚡ " .. text, "جاري الإيجاد والانتقال فوراً...")
+                    -- خطة احتياطية: بعد 3 ثواني ندور أحدث حيوان ظاهر
+                    task.delay(3, function()
+                        if not watching then return end
+                        pcall(function()
+                            local newest, newestTime = nil, 0
+                            for _, obj in pairs(workspace:GetDescendants()) do
+                                if obj:IsA("RemoteEvent") and obj.Name == "Remote"
+                                    and obj.Parent and obj.Parent:IsA("Model") then
+                                    local t = known[obj.Parent] or 0
+                                    if t > newestTime and (os.clock() - t) < 15 then
+                                        newest, newestTime = obj.Parent, t
+                                    end
+                                end
+                            end
+                            if newest then
+                                onNewBrainrot(newest)
+                            end
+                        end)
                     end)
                 end
-                listen(obj, path .. "/" .. obj.Name, depth + 1)
-            end
-        end
-        listen(game.ReplicatedStorage, "RS", 0)
-        listen(workspace, "WS", 0)
-    end)
-    return ok
-end
-
---------------------------------------------------------------------
--- 🎯 Prompt Steal — الزر القسري!
---------------------------------------------------------------------
-local function findStealPrompts()
-    local list = {}
-    pcall(function()
-        local myPos = getRoot().Position
-        for _, prompt in pairs(workspace:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") then
-                local parent = prompt.Parent
-                local model = parent and (parent:IsA("Model") and parent or parent.Parent)
-                if model then
-                    local pp = model:FindFirstChild("HumanoidRootPart")
-                        or model:FindFirstChildWhichIsA("BasePart")
-                    if pp then
-                        local dist = math.floor((pp.Position - myPos).Magnitude)
-                        table.insert(list, {
-                            prompt = prompt,
-                            name = model.Name,
-                            dist = dist,
-                            enabled = prompt.Enabled
-                        })
-                    end
-                end
-            end
-        end
-        table.sort(list, function(a, b) return a.dist < b.dist end)
-    end)
-    return list
-end
-
-local function forceTrigger(prompt)
-    local ok, err = pcall(function()
-        prompt:InputHoldBegin()
-        local hold = 0.3
-        pcall(function()
-            if prompt.HoldDuration and prompt.HoldDuration > hold then
-                hold = prompt.HoldDuration
             end
         end)
-        task.wait(hold + 0.15)
-        prompt:InputHoldEnd()
-    end)
-    return ok, err
-end
-
---------------------------------------------------------------------
--- 📡 Lock Radar — رادار الأقفال!
---------------------------------------------------------------------
-local radarConn = nil
-local lockStates = {} -- [baseModel] = true/false (locked)
-
-local function isLaserPart(part)
-    local n = string.lower(part.Name)
-    if n:find("laser") or n:find("lock") or n:find("lazer") then
-        return true
     end
-    -- جدران الليزر الحمراء: Neon أحمر شفاف
-    pcall(function()
-        if part.Material == Enum.Material.Neon
-            and part.Color.R > 0.7 and part.Color.G < 0.3 and part.Color.B < 0.3
-            and part.Transparency < 0.6 then
-            return true
-        end
-    end)
-    return false
-end
-
-local function scanBaseLocks()
-    local result = {}
-    pcall(function()
-        local myPos = getRoot().Position
-        local checked = {}
-        for _, part in pairs(workspace:GetDescendants()) do
-            if part:IsA("BasePart") and isLaserPart(part) and not checked[part] then
-                -- ابحث عن القاعدة الأب التي تحتويه
-                local base = part
-                for _ = 1, 4 do
-                    if base.Parent and base.Parent ~= workspace then
-                        base = base.Parent
-                    else
-                        break
-                    end
-                end
-                if base and base ~= workspace and not checked[base] then
-                    checked[base] = true
-                    local center = base:GetModelCFrame().Position
-                    local dist = math.floor((center - myPos).Magnitude)
-                    table.insert(result, {
-                        base = base,
-                        name = base.Name,
-                        dist = dist,
-                        locked = true
-                    })
-                end
-            end
-        end
-        table.sort(result, function(a, b) return a.dist < b.dist end)
-    end)
-    return result
-end
-
---------------------------------------------------------------------
--- نافذة Live Spy
---------------------------------------------------------------------
-local function showLiveWindow()
-    local ok, err = pcall(function()
-        if not game.CoreGui:FindFirstChild("BrlinGui") then return end
-        local old = game.CoreGui.BrlinGui:FindFirstChild("LiveFrame")
-        if old then old:Destroy() end
-
-        local LF = Instance.new("Frame")
-        LF.Name = "LiveFrame"
-        LF.Size = UDim2.new(0, 340, 0, 340)
-        LF.Position = UDim2.new(0, 260, 0, 180)
-        LF.BackgroundColor3 = Color3.fromRGB(30, 15, 15)
-        LF.Active = true
-        LF.Draggable = true
-        LF.Parent = game.CoreGui.BrlinGui
-
-        liveTitle = Instance.new("TextLabel")
-        liveTitle.Size = UDim2.new(1, 0, 0, 30)
-        liveTitle.Text = "📡 Live Spy — " .. #liveMessages .. " msgs"
-        liveTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
-        liveTitle.BackgroundTransparency = 1
-        liveTitle.TextSize = 14
-        liveTitle.Parent = LF
-
-        local legend = Instance.new("TextLabel")
-        legend.Size = UDim2.new(1, 0, 0, 18)
-        legend.Position = UDim2.new(0, 0, 0, 26)
-        legend.Text = "📤 out (أنت) | 📥 in (سيرفر)"
-        legend.TextColor3 = Color3.fromRGB(200, 200, 200)
-        legend.BackgroundTransparency = 1
-        legend.TextSize = 11
-        legend.Parent = LF
-
-        liveScroll = Instance.new("ScrollingFrame")
-        liveScroll.Size = UDim2.new(1, -10, 1, -55)
-        liveScroll.Position = UDim2.new(0, 5, 0, 45)
-        liveScroll.BackgroundColor3 = Color3.fromRGB(15, 8, 8)
-        liveScroll.ScrollBarThickness = 6
-        liveScroll.Parent = LF
-
-        local count = #liveMessages
-        liveScroll.CanvasSize = UDim2.new(0, 0, 0, count * 44)
-        local startI = math.max(1, count - 20)
-        local row = 0
-        for i = startI, count do
-            row = row + 1
-            local isOut = string.find(liveMessages[i], "📤", 1, true) ~= nil
-            local lbl = Instance.new("TextLabel")
-            lbl.Size = UDim2.new(1, -8, 0, 42)
-            lbl.Position = UDim2.new(0, 4, 0, (row - 1) * 44)
-            lbl.Text = liveMessages[i]
-            lbl.TextColor3 = isOut and Color3.fromRGB(100, 220, 255) or Color3.fromRGB(255, 255, 150)
-            lbl.BackgroundTransparency = 1
-            lbl.TextSize = 11
-            lbl.TextXAlignment = Enum.TextXAlignment.Left
-            lbl.TextWrapped = true
-            lbl.Parent = liveScroll
-        end
-    end)
-end
-
---------------------------------------------------------------------
--- نافذة Prompt Steal
---------------------------------------------------------------------
-local function showPromptWindow()
-    local ok, err = pcall(function()
-        if not game.CoreGui:FindFirstChild("BrlinGui") then return end
-        local old = game.CoreGui.BrlinGui:FindFirstChild("PromptFrame")
-        if old then old:Destroy() end
-
-        local prompts = findStealPrompts()
-
-        local SF = Instance.new("Frame")
-        SF.Name = "PromptFrame"
-        SF.Size = UDim2.new(0, 300, 0, 380)
-        SF.Position = UDim2.new(0, 260, 0, 150)
-        SF.BackgroundColor3 = Color3.fromRGB(15, 25, 15)
-        SF.Active = true
-        SF.Draggable = true
-        SF.Parent = game.CoreGui.BrlinGui
-
-        local STitle = Instance.new("TextLabel")
-        STitle.Size = UDim2.new(1, 0, 0, 30)
-        STitle.Text = "🎯 Prompt Steal — " .. #prompts
-        STitle.TextColor3 = Color3.fromRGB(0, 255, 127)
-        STitle.BackgroundTransparency = 1
-        STitle.TextSize = 14
-        STitle.Parent = SF
-
-        local hint = Instance.new("TextLabel")
-        hint.Size = UDim2.new(1, 0, 0, 18)
-        hint.Position = UDim2.new(0, 0, 0, 26)
-        hint.Text = "اضغط أي حيوان = زر سرقة قسري عن بعد!"
-        hint.TextColor3 = Color3.fromRGB(180, 180, 180)
-        hint.BackgroundTransparency = 1
-        hint.TextSize = 11
-        hint.Parent = SF
-
-        local Scroll = Instance.new("ScrollingFrame")
-        Scroll.Size = UDim2.new(1, -10, 1, -55)
-        Scroll.Position = UDim2.new(0, 5, 0, 48)
-        Scroll.BackgroundColor3 = Color3.fromRGB(8, 15, 8)
-        Scroll.ScrollBarThickness = 6
-        Scroll.CanvasSize = UDim2.new(0, 0, 0, math.max(1, #prompts) * 40)
-        Scroll.Parent = SF
-
-        if #prompts == 0 then
-            local lbl = Instance.new("TextLabel")
-            lbl.Size = UDim2.new(1, -8, 0, 40)
-            lbl.Text = "❌ لا يوجد أزرار سرقة ظاهرة!"
-            lbl.TextColor3 = Color3.fromRGB(255, 100, 100)
-            lbl.BackgroundTransparency = 1
-            lbl.TextSize = 13
-            lbl.Parent = Scroll
-        end
-
-        for i, entry in ipairs(prompts) do
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, -8, 0, 38)
-            btn.Position = UDim2.new(0, 4, 0, (i - 1) * 40)
-            local status = entry.enabled and "✅" or "🔒"
-            btn.Text = status .. " " .. entry.name .. "  📏" .. entry.dist .. "m"
-            btn.TextColor3 = entry.enabled and Color3.fromRGB(200, 255, 200) or Color3.fromRGB(255, 200, 100)
-            btn.BackgroundColor3 = Color3.fromRGB(25, 45, 25)
-            btn.TextSize = 12
-            btn.Parent = Scroll
-            btn.MouseButton1Click:Connect(function()
-                task.spawn(function()
-                    local ok2, err2 = forceTrigger(entry.prompt)
-                    game.StarterGui:SetCore("SendNotification", {
-                        Title = ok2 and "🎯 Force Trigger!" or "❌ Failed",
-                        Text = entry.name .. (ok2 and " — زر السرقة ضُغط! 👀" or (" " .. tostring(err2):sub(1, 40))),
-                        Duration = 3
-                    })
-                end)
-            end)
-        end
-    end)
-    if not ok then
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Prompt ❌",
-            Text = tostring(err):sub(1, 60),
-            Duration = 4
-        })
-    end
-end
-
---------------------------------------------------------------------
--- نافذة Lock Radar
---------------------------------------------------------------------
-local radarScroll = nil
-local radarTitle = nil
-
-local function updateRadarWindow()
-    pcall(function()
-        if radarScroll and radarScroll.Parent then
-            local bases = scanBaseLocks()
-            radarScroll:ClearAllChildren()
-            radarScroll.CanvasSize = UDim2.new(0, 0, 0, math.max(1, #bases) * 40)
-            if #bases == 0 then
-                local lbl = Instance.new("TextLabel")
-                lbl.Size = UDim2.new(1, -8, 0, 40)
-                lbl.Text = "❌ لم أجد جدران ليزر! (قرب قاعدة مقفولة وأعد الفحص)"
-                lbl.TextColor3 = Color3.fromRGB(255, 100, 100)
-                lbl.BackgroundTransparency = 1
-                lbl.TextSize = 12
-                lbl.TextWrapped = true
-                lbl.Parent = radarScroll
-            end
-            for i, entry in ipairs(bases) do
-                local lbl = Instance.new("TextLabel")
-                lbl.Size = UDim2.new(1, -8, 0, 38)
-                lbl.Position = UDim2.new(0, 4, 0, (i - 1) * 40)
-                lbl.Text = "🔴 LOCKED: " .. entry.name .. "  📏" .. entry.dist .. "m"
-                lbl.TextColor3 = Color3.fromRGB(255, 120, 120)
-                lbl.BackgroundTransparency = 1
-                lbl.TextSize = 12
-                lbl.TextXAlignment = Enum.TextXAlignment.Left
-                lbl.TextWrapped = true
-                lbl.Parent = radarScroll
-            end
-            if radarTitle then
-                radarTitle.Text = "📡 Lock Radar — " .. #bases .. " locked"
-            end
-        end
-    end)
-end
-
-local function showRadarWindow()
-    local ok, err = pcall(function()
-        if not game.CoreGui:FindFirstChild("BrlinGui") then return end
-        local old = game.CoreGui.BrlinGui:FindFirstChild("RadarFrame")
-        if old then old:Destroy() end
-
-        local RF = Instance.new("Frame")
-        RF.Name = "RadarFrame"
-        RF.Size = UDim2.new(0, 300, 0, 350)
-        RF.Position = UDim2.new(0, 260, 0, 180)
-        RF.BackgroundColor3 = Color3.fromRGB(25, 15, 25)
-        RF.Active = true
-        RF.Draggable = true
-        RF.Parent = game.CoreGui.BrlinGui
-
-        radarTitle = Instance.new("TextLabel")
-        radarTitle.Size = UDim2.new(1, 0, 0, 30)
-        radarTitle.Text = "📡 Lock Radar"
-        radarTitle.TextColor3 = Color3.fromRGB(255, 150, 255)
-        radarTitle.BackgroundTransparency = 1
-        radarTitle.TextSize = 14
-        radarTitle.Parent = RF
-
-        local hint = Instance.new("TextLabel")
-        hint.Size = UDim2.new(1, 0, 0, 18)
-        hint.Position = UDim2.new(0, 0, 0, 26)
-        hint.Text = "مراقبة القواعد المقفولة لحظياً!"
-        hint.TextColor3 = Color3.fromRGB(180, 180, 180)
-        hint.BackgroundTransparency = 1
-        hint.TextSize = 11
-        hint.Parent = RF
-
-        radarScroll = Instance.new("ScrollingFrame")
-        radarScroll.Size = UDim2.new(1, -10, 1, -55)
-        radarScroll.Position = UDim2.new(0, 5, 0, 45)
-        radarScroll.BackgroundColor3 = Color3.fromRGB(12, 8, 12)
-        radarScroll.ScrollBarThickness = 6
-        radarScroll.Parent = RF
-
-        updateRadarWindow()
-
-        -- تحديث تلقائي كل 3 ثواني!
-        task.spawn(function()
-            while radarScroll and radarScroll.Parent do
-                task.wait(3)
-                updateRadarWindow()
-            end
-        end)
-    end)
-    if not ok then
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Radar ❌",
-            Text = tostring(err):sub(1, 60),
-            Duration = 4
-        })
-    end
-end
+end)
 
 --------------------------------------------------------------------
 -- تدمير أي لوحة قديمة
@@ -517,7 +125,7 @@ if game.CoreGui:FindFirstChild("BrlinGui") then
 end
 
 --------------------------------------------------------------------
--- بناء الواجهة
+-- الواجهة — زر واحد فقط
 --------------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BrlinGui"
@@ -525,8 +133,8 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 425)
-Frame.Position = UDim2.new(0, 20, 0, 80)
+Frame.Size = UDim2.new(0, 220, 0, 95)
+Frame.Position = UDim2.new(0, 20, 0, 250)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 Frame.Active = true
 Frame.Draggable = true
@@ -540,138 +148,28 @@ Title.BackgroundTransparency = 1
 Title.TextSize = 15
 Title.Parent = Frame
 
-local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, 0, 0, 20)
-Status.Position = UDim2.new(0, 0, 0, 30)
-Status.Text = SavedCFrame and "📍 Saved ✓" or "❌ No Save"
-Status.TextColor3 = SavedCFrame and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 80, 80)
-Status.BackgroundTransparency = 1
-Status.TextSize = 13
-Status.Parent = Frame
+local btn = Instance.new("TextButton")
+btn.Size = UDim2.new(1, -16, 0, 40)
+btn.Position = UDim2.new(0, 8, 0, 45)
+btn.Text = "⚡ Respawn Legend [OFF]"
+btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+btn.TextSize = 14
+btn.Parent = Frame
 
-local function updateStatus()
-    Status.Text = SavedCFrame and "📍 Saved ✓" or "❌ No Save"
-    Status.TextColor3 = SavedCFrame and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 80, 80)
-end
-
-local function makeToggleButton(text, yPos, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -16, 0, 34)
-    btn.Position = UDim2.new(0, 8, 0, yPos)
-    btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-    btn.TextSize = 13
-    btn.Parent = Frame
-
-    local on = false
-    btn.MouseButton1Click:Connect(function()
-        on = not on
-        if on then
-            btn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
-            btn.Text = string.gsub(text, "%[OFF%]", "[ON]")
-        else
-            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-            btn.Text = string.gsub(text, "%[ON%]", "[OFF]")
-        end
-        callback(on)
-    end)
-end
-
-local function makeButton(text, yPos, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -16, 0, 34)
-    btn.Position = UDim2.new(0, 8, 0, yPos)
-    btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-    btn.TextSize = 13
-    btn.Parent = Frame
-    btn.MouseButton1Click:Connect(callback)
-end
-
---------------------------------------------------------------------
--- الأزرار
---------------------------------------------------------------------
-
-makeButton("🎯  Prompt Steal — السرقة القسرية!", 55, function()
-    showPromptWindow()
-end)
-
-makeButton("📡  Lock Radar — رادار الأقفال", 94, function()
-    showRadarWindow()
-end)
-
-makeButton("📍  Set", 133, function()
-    local root = getRoot()
-    saveCFrame(root.CFrame)
-    updateStatus()
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "📍 Saved!",
-        Text = "Position saved ✅",
-        Duration = 3
-    })
-end)
-
-makeButton("🚀  Tp", 172, function()
-    if SavedCFrame == nil then
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "❌ No Save!",
-            Text = "اضغط Set أولاً",
-            Duration = 3
-        })
-        return
+btn.MouseButton1Click:Connect(function()
+    watching = not watching
+    if watching then
+        btn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
+        btn.Text = "⚡ Respawn Legend [ON]"
+        notify("⚡ Legend Radar ON!", "أي أسطوري ينسخ — أنت عنده فوراً!")
+    else
+        btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+        btn.Text = "⚡ Respawn Legend [OFF]"
+        notify("⚡ Legend Radar OFF", "تم الإيقاف")
     end
-    local root = getRoot()
-    root.Anchored = true
-    task.wait()
-    root.CFrame = SavedCFrame + Vector3.new(0, 3, 0)
-    task.wait(0.1)
-    root.Anchored = false
-    pcall(function()
-        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
-    end)
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "🚀 Teleported!",
-        Text = "Back to saved spot ✅",
-        Duration = 3
-    })
-end)
-
-makeButton("🗑️  Remove Teleport", 211, function()
-    clearCFrame()
-    updateStatus()
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "🗑️ Cleared!",
-        Text = "All saves removed ❌",
-        Duration = 3
-    })
-end)
-
-makeToggleButton("👻 Noclip [OFF]", 250, function(on)
-    setNoclip(on)
-end)
-
-makeButton("📡  Full Spy", 289, function()
-    if not spyActive then
-        local outOk = hookOutgoing()
-        local inOk = hookIncoming()
-        spyActive = true
-        addLog("✅ Full Spy ON! (out:" .. tostring(outOk) .. " in:" .. tostring(inOk) .. ")")
-    end
-    showLiveWindow()
-end)
-
-makeButton("📜  عرض رسائل التجسس", 328, function()
-    showLiveWindow()
 end)
 
 --------------------------------------------------------------------
-game.StarterGui:SetCore("SendNotification", {
-    Title = "🧠 Brlin Funny Gamer",
-    Text = "v3.2 Lock Radar ✅",
-    Duration = 5
-})
-
-print("🧠 Brlin v3.2 Loaded! ✅")
+notify("🧠 Brlin Funny Gamer", "Legend Radar Loaded ✅")
+print("🧠 Brlin Legend Radar Loaded! ✅")
