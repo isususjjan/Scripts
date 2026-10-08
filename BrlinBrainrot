@@ -1,196 +1,299 @@
 -- ═══════════════════════════════════════════════
---   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   ⚡ MAX SPEED v2 — يشمل سرعة الحمل!
+--   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
+--   Steal a Brainrot
 -- ═══════════════════════════════════════════════
-local RunService = game:GetService("RunService")
 
 local player = game.Players.LocalPlayer
 
--- ⚙️ السرعة (عدّل الرقم كما تحب: 100 هادئة، 150 سريعة، 200 صاروخ!)
-local SPEED_VALUE = 150
-
-local function notify(title, text)
-    pcall(function()
-        game.StarterGui:SetCore("SendNotification", {
-            Title = title, Text = text, Duration = 3
-        })
-    end)
+local function getRoot()
+    local char = player.Character or player.CharacterAdded:Wait()
+    return char:WaitForChild("HumanoidRootPart")
 end
 
 --------------------------------------------------------------------
--- ⚡ محرك السرعة
+-- نظام الحفظ الدائم
 --------------------------------------------------------------------
-local speedOn = false
-local watchConn = nil
-local beatConn = nil
+local SAVE_FILE = "BrlinTP.txt"
+local SavedCFrame = nil
 
--- نربط مراقبة لحظية على الـ Humanoid نفسه!
-local function armHumanoid(hum)
-    pcall(function()
-        hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-            if speedOn and hum.WalkSpeed < SPEED_VALUE then
-                hum.WalkSpeed = SPEED_VALUE
-            end
-        end)
-        hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
-            if speedOn and hum.JumpPower < 120 then
-                hum.JumpPower = 120
-            end
-        end)
+if writefile and readfile and isfile and isfile(SAVE_FILE) then
+    local ok, data = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(readfile(SAVE_FILE))
     end)
+    if ok and data then
+        SavedCFrame = CFrame.new(data[1], data[2], data[3])
+    end
 end
 
--- تطبيق أقصى سرعة على الشخصية + الحيوان المحمول!
-local function maxEverything(char)
-    pcall(function()
-        -- ١. سرعتك أنت
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            if hum.WalkSpeed < SPEED_VALUE then hum.WalkSpeed = SPEED_VALUE end
-            if hum.JumpPower < 120 then hum.JumpPower = 120 end
-        end
-
-        -- ٢. سرعة أي شيء محمول بيدك (الحيوان المسروق له Humanoid أيضاً أحياناً!)
-        for _, obj in pairs(workspace:GetChildren()) do
-            if obj:IsA("Model") then
-                pcall(function()
-                    -- هل هذا الحيوان مربوط بجسدك (أنت حامله)؟
-                    local weld = obj:FindFirstChildWhichIsA("Weld", true)
-                        or obj:FindFirstChildWhichIsA("WeldConstraint", true)
-                    if weld then
-                        local myRoot = char:FindFirstChild("HumanoidRootPart")
-                        if myRoot and (weld.Part0 == myRoot or weld.Part1 == myRoot) then
-                            local hisHum = obj:FindFirstChildOfClass("Humanoid")
-                            if hisHum and hisHum.WalkSpeed < SPEED_VALUE then
-                                hisHum.WalkSpeed = SPEED_VALUE
-                            end
-                        end
-                    end
-                end)
-            end
-        end
-
-        -- ٣. كسر قيود الحمل (BodyVelocity البطيء!)
-        for _, v in pairs(char:GetDescendants()) do
-            if v:IsA("BodyVelocity") then
-                v.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-            end
-        end
-    end)
-end
-
-local function setSpeed(on)
-    -- فك كل المراقبات القديمة
-    if watchConn then watchConn:Disconnect(); watchConn = nil end
-    if beatConn then beatConn:Disconnect(); beatConn = nil end
-
-    if on then
-        -- ١. سلاح جسدك الحالي
+local function saveCFrame(cf)
+    SavedCFrame = cf
+    if writefile then
         pcall(function()
-            local char = player.Character
-            if char then
-                maxEverything(char)
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if hum then armHumanoid(hum) end
-            end
-        end)
-
-        -- ٢. حراسة كل إطار (60 مرة بالثانية!)
-        beatConn = RunService.Heartbeat:Connect(function()
-            pcall(function()
-                local char = player.Character
-                if char then maxEverything(char) end
-            end)
-        end)
-
-        -- ٣. حراسة الشخصية الجديدة عند Respawn
-        player.CharacterAdded:Connect(function(char)
-            if not speedOn then return end
-            task.wait(0.5)
-            maxEverything(char)
-            pcall(function() armHumanoid(char:WaitForChild("Humanoid")) end)
-        end)
-
-        -- ٤. راقب أي Humanoid جديد يظهر في العالم (الحيوانات المنسوخة!)
-        watchConn = workspace.DescendantAdded:Connect(function(obj)
-            if not speedOn then return end
-            if obj:IsA("Humanoid") then
-                task.wait(0.1)
-                armHumanoid(obj)
-                pcall(function()
-                    if obj.WalkSpeed < SPEED_VALUE and obj.WalkSpeed > 0 then
-                        obj.WalkSpeed = SPEED_VALUE
-                    end
-                end)
-            end
-        end)
-    else
-        -- إيقاف: نرجع الطبيعي
-        pcall(function()
-            local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.WalkSpeed = 16
-                hum.JumpPower = 50
-            end
+            local pos = cf.Position
+            writefile(SAVE_FILE, game:GetService("HttpService"):JSONEncode({pos.X, pos.Y, pos.Z}))
         end)
     end
 end
 
---------------------------------------------------------------------
--- تدمير أي لوحة قديمة
---------------------------------------------------------------------
-if game.CoreGui:FindFirstChild("BrlinGui") then
-    game.CoreGui:FindFirstChild("BrlinGui"):Destroy()
+local function clearCFrame()
+    SavedCFrame = nil
+    if writefile and isfile and isfile(SAVE_FILE) then
+        pcall(function() delfile(SAVE_FILE) end)
+    end
 end
 
 --------------------------------------------------------------------
--- الواجهة — زر واحد
+-- الألوان الثابتة (هويتك!)
+--------------------------------------------------------------------
+local C_BG        = Color3.fromRGB(15, 15, 15)      -- أسود القوائم
+local C_RED       = Color3.fromRGB(200, 30, 30)     -- أحمر متوسط للحواف
+local C_WHITE     = Color3.fromRGB(255, 255, 255)   -- أبيض للنصوص
+local C_LINE      = Color3.fromRGB(255, 255, 255)   -- خط أبيض فاصل
+
+--------------------------------------------------------------------
+-- تدمير أي واجهة قديمة
+--------------------------------------------------------------------
+if game.CoreGui:FindFirstChild("BrlinMenu") then
+    game.CoreGui:FindFirstChild("BrlinMenu"):Destroy()
+end
+if game.CoreGui:FindFirstChild("BrlinCircle") then
+    game.CoreGui:FindFirstChild("BrlinCircle"):Destroy()
+end
+
+--------------------------------------------------------------------
+-- بناء الواجهة
 --------------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BrlinGui"
+ScreenGui.Name = "BrlinMenu"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
+-- ═══ الإطار الرئيسي (متوسط الحجم + إطار أحمر دائري!) ═══
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 100)
-Frame.Position = UDim2.new(0, 20, 0, 250)
-Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+Frame.Size = UDim2.new(0, 260, 0, 340)
+Frame.Position = UDim2.new(0.5, -130, 0.5, -170)
+Frame.BackgroundColor3 = C_BG
+Frame.BorderSizePixel = 0
 Frame.Active = true
 Frame.Draggable = true
 Frame.Parent = ScreenGui
 
+-- الإطار الأحمر المحيط بالقائمة كلها!
+local RedBorder = Instance.new("UIStroke")
+RedBorder.Color = C_RED
+RedBorder.Thickness = 2          -- متوسط: لا رفيع ولا عميق
+RedBorder.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+RedBorder.Parent = Frame
+
+-- زوايا ناعمة خفيفة (للجمالية)
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 8)
+Corner.Parent = Frame
+
+-- ═══ اسم المطور بالأعلى (أبيض!) ═══
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 35)
-Title.Text = "🧠 Brlin Funny Gamer 🧠"
-Title.TextColor3 = Color3.fromRGB(0, 255, 127)
+Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.TextSize = 15
+Title.Text = "⚡Brlin Funny Gamer⚡"
+Title.TextColor3 = C_WHITE
+Title.TextSize = 17
+Title.Font = Enum.Font.GothamBold
 Title.Parent = Frame
 
-local btn = Instance.new("TextButton")
-btn.Size = UDim2.new(1, -16, 0, 40)
-btn.Position = UDim2.new(0, 8, 0, 45)
-btn.Text = "⚡ MAX SPEED [OFF]"
-btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-btn.TextSize = 14
-btn.Parent = Frame
+-- ═══ الخط الأبيض الفاصل (تحت الاسم) ═══
+local Line1 = Instance.new("Frame")
+Line1.Size = UDim2.new(1, -20, 0, 2)
+Line1.Position = UDim2.new(0, 10, 0, 42)
+Line1.BackgroundColor3 = C_LINE
+Line1.BorderSizePixel = 0
+Line1.Parent = Frame
 
-btn.MouseButton1Click:Connect(function()
-    speedOn = not speedOn
-    if speedOn then
-        btn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
-        btn.Text = "⚡ MAX SPEED [ON]"
-        setSpeed(true)
-        notify("⚡ MAX SPEED ON!", "سرعتك + سرعة حملك = القصوى! ✈️")
-    else
-        btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-        btn.Text = "⚡ MAX SPEED [OFF]"
-        setSpeed(false)
-        notify("⚡ Speed OFF", "رجعت الطبيعية", 3)
+-- ═══ مربع الـ Category (أسود + حواف حمراء!) ═══
+local Category = Instance.new("Frame")
+Category.Size = UDim2.new(1, -24, 0, 45)
+Category.Position = UDim2.new(0, 12, 0, 52)
+Category.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Category.BorderSizePixel = 0
+Category.Parent = Frame
+
+local CatBorder = Instance.new("UIStroke")
+CatBorder.Color = C_RED
+CatBorder.Thickness = 1.5
+CatBorder.Parent = Category
+
+local CatCorner = Instance.new("UICorner")
+CatCorner.CornerRadius = UDim.new(0, 6)
+CatCorner.Parent = Category
+
+local StatusText = Instance.new("TextLabel")
+StatusText.Size = UDim2.new(1, 0, 1, 0)
+StatusText.BackgroundTransparency = 1
+StatusText.Text = SavedCFrame and "✅ Saved" or "❌ No Save"
+StatusText.TextColor3 = C_WHITE
+StatusText.TextSize = 16
+StatusText.Font = Enum.Font.GothamBold
+StatusText.Parent = Category
+
+-- ═══ الخط الأبيض الفاصل الثاني (تحت الـ Category!) ═══
+local Line2 = Instance.new("Frame")
+Line2.Size = UDim2.new(1, -20, 0, 2)
+Line2.Position = UDim2.new(0, 10, 0, 107)
+Line2.BackgroundColor3 = C_LINE
+Line2.BorderSizePixel = 0
+Line2.Parent = Frame
+
+-- ═══ دالة بناء الأزرار (نفس ستايل الـ Category!) ═══
+local function makeButton(text, yPos, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -24, 0, 42)
+    btn.Position = UDim2.new(0, 12, 0, yPos)
+    btn.Text = text
+    btn.TextColor3 = C_WHITE
+    btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    btn.TextSize = 15
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = Frame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = C_RED
+    stroke.Thickness = 1.5
+    stroke.Parent = btn
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+
+    -- تأثير اللمسة (إضاءة خفيفة عند التمرير)
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    end)
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    end)
+
+    btn.MouseButton1Click:Connect(callback)
+end
+
+--------------------------------------------------------------------
+-- الأزرار الأربعة
+--------------------------------------------------------------------
+
+-- ١. Set 🪹 — بدون توست! يتغير الشريط فقط
+makeButton("Set 🪹", 119, function()
+    local root = getRoot()
+    saveCFrame(root.CFrame)
+    StatusText.Text = "✅ Saved"
+end)
+
+-- ٢. Tp 🎩 — التوست المطلوب!
+makeButton("Tp 🎩", 166, function()
+    if SavedCFrame == nil then
+        StatusText.Text = "❌ No Save"
+        return
+    end
+    local root = getRoot()
+    root.Anchored = true
+    task.wait()
+    root.CFrame = SavedCFrame + Vector3.new(0, 3, 0)
+    task.wait(0.1)
+    root.Anchored = false
+    pcall(function()
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+    end)
+    pcall(function()
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "Teleport Successful ⚡",
+            Text = "",
+            Duration = 3
+        })
+    end)
+end)
+
+-- ٣. Remove Set 🗑️ — التوست المطلوب!
+makeButton("Remove Set 🗑️", 213, function()
+    clearCFrame()
+    StatusText.Text = "❌ No Save"
+    pcall(function()
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "Removed Set Successful✅",
+            Text = "",
+            Duration = 3
+        })
+    end)
+end)
+
+-- ٤. Close Menu ❌ — يخفي ويظهر الدائرة!
+makeButton("Close Menu ❌", 260, function()
+    Frame.Visible = false
+end)
+
+--------------------------------------------------------------------
+-- 🖤 الدائرة السوداء — حرف B أبيض في النصف!
+--------------------------------------------------------------------
+local CircleGui = Instance.new("ScreenGui")
+CircleGui.Name = "BrlinCircle"
+CircleGui.ResetOnSpawn = false
+CircleGui.Parent = game.CoreGui
+
+local CircleBtn = Instance.new("TextButton")
+CircleBtn.Size = UDim2.new(0, 55, 0, 55)
+CircleBtn.Position = UDim2.new(0, 15, 0.5, -27)
+CircleBtn.Text = "B"
+CircleBtn.TextColor3 = C_WHITE
+CircleBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+CircleBtn.TextSize = 24
+CircleBtn.Font = Enum.Font.GothamBlack
+CircleBtn.Visible = false
+CircleBtn.Parent = CircleGui
+
+-- الدائرة الكاملة
+local CircleShape = Instance.new("UICorner")
+CircleShape.CornerRadius = UDim.new(1, 0)
+CircleShape.Parent = CircleBtn
+
+-- إطار أحمر خفيف للدائرة (لأناقة الهوية!)
+local CircleStroke = Instance.new("UIStroke")
+CircleStroke.Color = C_RED
+CircleStroke.Thickness = 1.5
+CircleStroke.Parent = CircleBtn
+
+CircleBtn.MouseEnter:Connect(function()
+    CircleBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+end)
+CircleBtn.MouseLeave:Connect(function()
+    CircleBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+end)
+
+CircleBtn.MouseButton1Click:Connect(function()
+    Frame.Visible = true
+    CircleBtn.Visible = false
+end)
+
+-- ربط زر الإغلاق مع الدائرة
+-- (نعيد تعريف سلوك Close: أخفِ القائمة وأظهر الدائرة!)
+-- بما أن الأزرار بُنيت أعلاه، نعدل آخر زر عبر المراقبة:
+task.defer(function()
+    -- نجد زر Close (آخر TextButton في Frame)
+    for _, child in pairs(Frame:GetChildren()) do
+        if child:IsA("TextButton") and child.Text:find("Close") then
+            child.MouseButton1Click:Connect(function()
+                Frame.Visible = false
+                CircleBtn.Visible = true
+            end)
+        end
     end
 end)
 
 --------------------------------------------------------------------
-notify("🧠 Brlin Funny Gamer", "MAX SPEED v2 Loaded ✅")
-print("🧠 Brlin Max Speed v2 Loaded! ✅")
+-- ✅ افتح القائمة عند التشغيل مباشرة
+--------------------------------------------------------------------
+Frame.Visible = true
+
+game.StarterGui:SetCore("SendNotification", {
+    Title = "⚡Brlin Funny Gamer⚡",
+    Text = "Menu Loaded ✅",
+    Duration = 4
+})
+
+print("🧠 Brlin Teleport Menu Loaded! ✅")
