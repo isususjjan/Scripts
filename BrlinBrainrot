@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   ⚡ Legend Radar — رادار الأساطير
+--   ⚡ Auto-Return Home v1.0
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -11,110 +11,105 @@ local function getRoot()
 end
 
 --------------------------------------------------------------------
--- الانتقال
+-- نظام الحفظ الدائم
 --------------------------------------------------------------------
-local function tpTo(pos)
+local SAVE_FILE = "BrlinTP.txt"
+local SavedCFrame = nil
+
+if writefile and readfile and isfile and isfile(SAVE_FILE) then
+    local ok, data = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(readfile(SAVE_FILE))
+    end)
+    if ok and data then
+        SavedCFrame = CFrame.new(data[1], data[2], data[3])
+    end
+end
+
+local function saveCFrame(cf)
+    SavedCFrame = cf
+    if writefile then
+        pcall(function()
+            local pos = cf.Position
+            writefile(SAVE_FILE, game:GetService("HttpService"):JSONEncode({pos.X, pos.Y, pos.Z}))
+        end)
+    end
+end
+
+local function clearCFrame()
+    SavedCFrame = nil
+    if writefile and isfile and isfile(SAVE_FILE) then
+        pcall(function() delfile(SAVE_FILE) end)
+    end
+end
+
+--------------------------------------------------------------------
+-- ⚡ العقل الخفي — كاشف الالتقاط!
+--------------------------------------------------------------------
+local autoReturn = false
+local returning = false
+local conn = nil
+
+local function returnHome()
+    if returning then return end
+    if SavedCFrame == nil then return end
+    returning = true
     pcall(function()
         local root = getRoot()
         root.Anchored = true
         task.wait()
-        root.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
+        root.CFrame = SavedCFrame + Vector3.new(0, 3, 0)
         task.wait(0.1)
         root.Anchored = false
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
         if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
     end)
+    returning = false
 end
 
-local function notify(title, text)
-    pcall(function()
-        game.StarterGui:SetCore("SendNotification", {
-            Title = title,
-            Text = text,
-            Duration = 5
-        })
+local function watchCarry()
+    if conn then conn:Disconnect(); conn = nil end
+    conn = player.Character.ChildAdded:Connect(function(child)
+        if not autoReturn then return end
+        -- عنصر الربط (Weld/Attachment/BodyPosition...) = أمسكت حيواناً!
+        if child:IsA("Weld") or child:IsA("WeldConstraint")
+            or child:IsA("BodyPosition") or child:IsA("AlignPosition") then
+            -- نتحقق أن العنصر يربط بـ HumanoidRootPart (جسدك)
+            pcall(function()
+                if child.Part0 == getRoot() or child.Part1 == getRoot() then
+                    -- ⚡ سرقة موثقة! نرجع فوراً!
+                    task.wait(0.05)
+                    returnHome()
+                    game.StarterGui:SetCore("SendNotification", {
+                        Title = "⚡ Auto Return!",
+                        Text = "سرقت! رجعناك لقاعدتك فوراً ✅",
+                        Duration = 3
+                    })
+                end
+            end)
+        end
     end)
 end
 
---------------------------------------------------------------------
--- ⚡ رادار الأساطير
---------------------------------------------------------------------
-local watching = false
-local grabUntil = 0
-local known = {}
-
--- نسجل كل الحيوانات الموجودة حالياً
-pcall(function()
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("RemoteEvent") and obj.Name == "Remote" and obj.Parent and obj.Parent:IsA("Model") then
-            known[obj.Parent] = os.clock()
-        end
-    end
+-- عند دخولك/ respawn نشاهد من جديد
+if player.Character then watchCarry() end
+player.CharacterAdded:Connect(function()
+    task.wait(1)
+    watchCarry()
 end)
 
-local function onNewBrainrot(model)
-    pcall(function()
-        local pp = model:FindFirstChild("HumanoidRootPart")
-            or model:FindFirstChildWhichIsA("BasePart")
-        if pp then
-            tpTo(pp.Position)
-            notify("⚡ LEGENDARY!", "انتقلت إليه فوراً: " .. model.Name)
-        end
-    end)
-end
-
--- رصد كل حيوان جديد يظهر في العالم
+-- خطة احتياطية ثانية: مراقبة Backpack/Carry في العالم!
 workspace.DescendantAdded:Connect(function(obj)
+    if not autoReturn then return end
     pcall(function()
-        if obj:IsA("RemoteEvent") and obj.Name == "Remote" then
-            local model = obj.Parent
-            if model and model:IsA("Model") and not known[model] then
-                known[model] = os.clock()
-                if watching and os.clock() <= grabUntil then
-                    onNewBrainrot(model)
-                end
+        -- بعض الألعاب تضع الحيوان في حوزتك مباشرة!
+        if obj:IsA("Model") and obj.Name:find("Brainrot") then
+            local holder = obj:FindFirstChildWhichIsA("Weld")
+            if holder and (holder.Part0 == getRoot() or holder.Part1 == getRoot()) then
+                task.wait(0.05)
+                returnHome()
             end
         end
     end)
-end)
-
--- الاستماع لإشعار السيرفر (الذي رأيناه بالتجسس!)
-pcall(function()
-    local notif = game.ReplicatedStorage.Remotes:WaitForChild("Notification", 10)
-    if notif then
-        notif.OnClientEvent:Connect(function(text, color)
-            if not watching then return end
-            if typeof(text) == "string" then
-                local lower = string.lower(text)
-                if string.find(lower, "legendary", 1, true)
-                    or string.find(lower, "mythic", 1, true)
-                    or string.find(lower, "brainrot god", 1, true)
-                    or string.find(lower, "secret", 1, true) then
-                    grabUntil = os.clock() + 8
-                    notify("⚡ " .. text, "جاري الإيجاد والانتقال فوراً...")
-                    -- خطة احتياطية: بعد 3 ثواني ندور أحدث حيوان ظاهر
-                    task.delay(3, function()
-                        if not watching then return end
-                        pcall(function()
-                            local newest, newestTime = nil, 0
-                            for _, obj in pairs(workspace:GetDescendants()) do
-                                if obj:IsA("RemoteEvent") and obj.Name == "Remote"
-                                    and obj.Parent and obj.Parent:IsA("Model") then
-                                    local t = known[obj.Parent] or 0
-                                    if t > newestTime and (os.clock() - t) < 15 then
-                                        newest, newestTime = obj.Parent, t
-                                    end
-                                end
-                            end
-                            if newest then
-                                onNewBrainrot(newest)
-                            end
-                        end)
-                    end)
-                end
-            end
-        end)
-    end
 end)
 
 --------------------------------------------------------------------
@@ -125,7 +120,7 @@ if game.CoreGui:FindFirstChild("BrlinGui") then
 end
 
 --------------------------------------------------------------------
--- الواجهة — زر واحد فقط
+-- الواجهة — زران فقط
 --------------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BrlinGui"
@@ -133,8 +128,8 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 95)
-Frame.Position = UDim2.new(0, 20, 0, 250)
+Frame.Size = UDim2.new(0, 220, 0, 140)
+Frame.Position = UDim2.new(0, 20, 0, 220)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 Frame.Active = true
 Frame.Draggable = true
@@ -148,28 +143,57 @@ Title.BackgroundTransparency = 1
 Title.TextSize = 15
 Title.Parent = Frame
 
-local btn = Instance.new("TextButton")
-btn.Size = UDim2.new(1, -16, 0, 40)
-btn.Position = UDim2.new(0, 8, 0, 45)
-btn.Text = "⚡ Respawn Legend [OFF]"
-btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-btn.TextSize = 14
-btn.Parent = Frame
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, 0, 0, 20)
+Status.Position = UDim2.new(0, 0, 0, 30)
+Status.Text = SavedCFrame and "📍 Saved ✓" or "❌ No Save"
+Status.TextColor3 = SavedCFrame and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 80, 80)
+Status.BackgroundTransparency = 1
+Status.TextSize = 13
+Status.Parent = Frame
 
-btn.MouseButton1Click:Connect(function()
-    watching = not watching
-    if watching then
-        btn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
-        btn.Text = "⚡ Respawn Legend [ON]"
-        notify("⚡ Legend Radar ON!", "أي أسطوري ينسخ — أنت عنده فوراً!")
-    else
-        btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-        btn.Text = "⚡ Respawn Legend [OFF]"
-        notify("⚡ Legend Radar OFF", "تم الإيقاف")
-    end
+local function updateStatus()
+    Status.Text = SavedCFrame and "📍 Saved ✓" or "❌ No Save"
+    Status.TextColor3 = SavedCFrame and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 80, 80)
+end
+
+local function makeButton(text, yPos, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -16, 0, 34)
+    btn.Position = UDim2.new(0, 8, 0, yPos)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    btn.TextSize = 13
+    btn.Parent = Frame
+    btn.MouseButton1Click:Connect(callback)
+end
+
+--------------------------------------------------------------------
+-- الزران
+--------------------------------------------------------------------
+
+makeButton("📍  Set", 55, function()
+    local root = getRoot()
+    saveCFrame(root.CFrame)
+    updateStatus()
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "📍 Saved!",
+        Text = "قاعدتك محفوظة — اذهب واسرق! ⚡",
+        Duration = 3
+    })
+end)
+
+makeButton("🗑️  Remove Tp", 94, function()
+    clearCFrame()
+    updateStatus()
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "🗑️ Cleared!",
+        Text = "All saves removed ❌",
+        Duration = 3
+    })
 end)
 
 --------------------------------------------------------------------
-notify("🧠 Brlin Funny Gamer", "Legend Radar Loaded ✅")
-print("🧠 Brlin Legend Radar Loaded! ✅")
+notify("🧠 Brlin Funny Gamer", "Auto-Return Ready ✅")
+print("🧠 Brlin Auto-Return Loaded! ✅")
