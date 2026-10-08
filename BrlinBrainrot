@@ -1,18 +1,17 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   v1.3 — Teleport + Spy + Live Spy 📡
+--   v1.4 — Teleport + Spy + Live Spy Window 📡
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
 
--- دالة جلب جذر الجسد بأمان
 local function getRoot()
     local char = player.Character or player.CharacterAdded:Wait()
     return char:WaitForChild("HumanoidRootPart")
 end
 
 --------------------------------------------------------------------
--- نظام الحفظ الدائم (ملف على جهازك!)
+-- نظام الحفظ الدائم
 --------------------------------------------------------------------
 local SAVE_FILE = "BrlinTP.txt"
 local SavedCFrame = nil
@@ -44,7 +43,7 @@ local function clearCFrame()
 end
 
 --------------------------------------------------------------------
--- 🛡️ Stay Inside — مضاد الطرد من القواعد المقفولة!
+-- 🛡️ Stay Inside
 --------------------------------------------------------------------
 local stayOn = false
 local stayThread = nil
@@ -77,7 +76,7 @@ local function toggleStay(on)
 end
 
 --------------------------------------------------------------------
--- 🔍 Spy — كاشف الأزرار السرية (Remotes)
+-- 🔍 Spy الثابت
 --------------------------------------------------------------------
 local spyResults = {}
 
@@ -95,14 +94,14 @@ local function runSpy()
         end)
     end
     scan(game.ReplicatedStorage, "RS", 0)
-    return #spyResults
 end
 
 local function showSpyResults()
     local ok, err = pcall(function()
         runSpy()
-        local frame = game.CoreGui:FindFirstChild("BrlinGui") and game.CoreGui.BrlinGui:FindFirstChild("SpyFrame")
-        if frame then frame:Destroy() end
+        if not game.CoreGui:FindFirstChild("BrlinGui") then return end
+        local old = game.CoreGui.BrlinGui:FindFirstChild("SpyFrame")
+        if old then old:Destroy() end
 
         local SF = Instance.new("Frame")
         SF.Name = "SpyFrame"
@@ -141,19 +140,39 @@ local function showSpyResults()
             lbl.Parent = Scroll
         end
     end)
-    if not ok then
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Spy ❌",
-            Text = tostring(err):sub(1, 60),
-            Duration = 4
-        })
-    end
 end
 
 --------------------------------------------------------------------
--- 📡 Live Spy — المستمع الحي لأوامر السيرفر!
+-- 📡 Live Spy — المستمع الحي بنافذة عرض!
 --------------------------------------------------------------------
-local liveSpyConnected = false
+local liveMessages = {}
+local liveConnected = false
+local liveScroll = nil
+
+local function updateLiveWindow()
+    pcall(function()
+        if liveScroll and liveScroll.Parent then
+            liveScroll:ClearAllChildren()
+            local count = #liveMessages
+            liveScroll.CanvasSize = UDim2.new(0, 0, 0, count * 26)
+            local startI = math.max(1, count - 25)
+            local row = 0
+            for i = startI, count do
+                row = row + 1
+                local lbl = Instance.new("TextLabel")
+                lbl.Size = UDim2.new(1, -8, 0, 26)
+                lbl.Position = UDim2.new(0, 4, 0, (row - 1) * 26)
+                lbl.Text = liveMessages[i]
+                lbl.TextColor3 = Color3.fromRGB(255, 255, 150)
+                lbl.BackgroundTransparency = 1
+                lbl.TextSize = 11
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+                lbl.TextWrapped = true
+                lbl.Parent = liveScroll
+            end
+        end
+    end)
+end
 
 local function startLiveSpy()
     local ok, err = pcall(function()
@@ -169,17 +188,21 @@ local function startLiveSpy()
 
         remote.OnClientEvent:Connect(function(...)
             local args = {...}
-            local info = "📥 " .. #args .. " args: "
+            local info = "📥"
             for i, arg in ipairs(args) do
                 local t = typeof(arg)
                 local v = tostring(arg)
-                if #v > 60 then v = v:sub(1, 60) .. "..." end
-                info = info .. "[" .. i .. "]=" .. t .. "(" .. v .. ")  "
+                if #v > 50 then v = v:sub(1, 50) .. "..." end
+                info = info .. " [" .. i .. "]" .. t .. ":" .. v
             end
-            print("📡 " .. info)
+            table.insert(liveMessages, info)
+            if #liveMessages > 100 then
+                table.remove(liveMessages, 1)
+            end
+            updateLiveWindow()
         end)
 
-        liveSpyConnected = true
+        liveConnected = true
     end)
     if not ok then
         game.StarterGui:SetCore("SendNotification", {
@@ -188,6 +211,40 @@ local function startLiveSpy()
             Duration = 4
         })
     end
+end
+
+local function showLiveWindow()
+    local ok, err = pcall(function()
+        if not game.CoreGui:FindFirstChild("BrlinGui") then return end
+        local old = game.CoreGui.BrlinGui:FindFirstChild("LiveFrame")
+        if old then old:Destroy() end
+
+        local LF = Instance.new("Frame")
+        LF.Name = "LiveFrame"
+        LF.Size = UDim2.new(0, 320, 0, 300)
+        LF.Position = UDim2.new(0, 260, 0, 200)
+        LF.BackgroundColor3 = Color3.fromRGB(30, 15, 15)
+        LF.Active = true
+        LF.Draggable = true
+        LF.Parent = game.CoreGui.BrlinGui
+
+        local LTitle = Instance.new("TextLabel")
+        LTitle.Size = UDim2.new(1, 0, 0, 30)
+        LTitle.Text = "📡 Live Spy — " .. #liveMessages .. " msgs"
+        LTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
+        LTitle.BackgroundTransparency = 1
+        LTitle.TextSize = 14
+        LTitle.Parent = LF
+
+        liveScroll = Instance.new("ScrollingFrame")
+        liveScroll.Size = UDim2.new(1, -10, 1, -40)
+        liveScroll.Position = UDim2.new(0, 5, 0, 35)
+        liveScroll.BackgroundColor3 = Color3.fromRGB(15, 8, 8)
+        liveScroll.ScrollBarThickness = 6
+        liveScroll.Parent = LF
+
+        updateLiveWindow()
+    end)
 end
 
 --------------------------------------------------------------------
@@ -248,10 +305,9 @@ local function makeButton(text, yPos, callback)
 end
 
 --------------------------------------------------------------------
--- الأزرار السبعة
+-- الأزرار
 --------------------------------------------------------------------
 
--- ١. Set — حفظ المكان الحالي
 makeButton("📍  Set", 55, function()
     local root = getRoot()
     saveCFrame(root.CFrame)
@@ -263,7 +319,6 @@ makeButton("📍  Set", 55, function()
     })
 end)
 
--- ٢. Tp — الانتقال للمكان المحفوظ
 makeButton("🚀  Tp", 94, function()
     if SavedCFrame == nil then
         game.StarterGui:SetCore("SendNotification", {
@@ -290,7 +345,6 @@ makeButton("🚀  Tp", 94, function()
     })
 end)
 
--- ٣. Remove Teleport — مسح كل شيء
 makeButton("🗑️  Remove Teleport", 133, function()
     toggleStay(false)
     clearCFrame()
@@ -302,7 +356,6 @@ makeButton("🗑️  Remove Teleport", 133, function()
     })
 end)
 
--- ٤. Stay Inside — مضاد الطرد
 makeButton("🛡️ Stay Inside [OFF]", 172, function()
     if not stayOn then
         if SavedCFrame == nil then
@@ -321,36 +374,32 @@ makeButton("🛡️ Stay Inside [OFF]", 172, function()
     end
 end)
 
--- ٥. Spy — كشف الأزرار السرية
 makeButton("🔍  Spy — كشف الأسرار", 211, function()
     showSpyResults()
 end)
 
--- ٦. Live Spy — المستمع الحي
-makeButton("📡  Live Spy — تجسس لحظي", 250, function()
-    if liveSpyConnected then
+makeButton("📡  Live Spy — تشغيل التجسس", 250, function()
+    if liveConnected then
         game.StarterGui:SetCore("SendNotification", {
             Title = "📡 Live Spy",
             Text = "Already Connected ✅",
             Duration = 3
         })
-        return
+    else
+        startLiveSpy()
     end
-    startLiveSpy()
+    showLiveWindow()
 end)
 
--- ٧. سجل الرسائل المسموعة
-makeButton("📜  Show Spy Log", 289, function()
-    showSpyResults()
+makeButton("📜  عرض رسائل التجسس", 289, function()
+    showLiveWindow()
 end)
 
---------------------------------------------------------------------
--- إشعار النجاح
 --------------------------------------------------------------------
 game.StarterGui:SetCore("SendNotification", {
     Title = "🧠 Brlin Funny Gamer",
-    Text = "v1.3 Loaded ✅",
+    Text = "v1.4 Loaded ✅",
     Duration = 5
 })
 
-print("🧠 Brlin v1.3 Loaded! ✅")
+print("🧠 Brlin v1.4 Loaded! ✅")
