@@ -1,196 +1,88 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   🔒 Auto Lock v4 — Stand & Protect!
+--   ⚡ MAX SPEED — كل سرعات اللعبة!
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
-local RunService = game:GetService("RunService")
 
-local function getRoot()
-    local char = player.Character or player.CharacterAdded:Wait()
-    return char:WaitForChild("HumanoidRootPart")
-end
-
-local function notify(title, text, dur)
+local function notify(title, text)
     pcall(function()
         game.StarterGui:SetCore("SendNotification", {
-            Title = title, Text = text, Duration = dur or 3
+            Title = title, Text = text, Duration = 3
         })
     end)
 end
 
 --------------------------------------------------------------------
--- ⚙️ الإعدادات
+-- ⚡ محرك السرعة الشامل
 --------------------------------------------------------------------
-local RECHECK_EVERY = 2      -- فحص الليزر كل ثانيتين
-local FALLBACK_RETOUCH = 20  -- احتياط: إعادة دوس كل 20 ثانية إن لم نجد ليزر
+local speedOn = false
+local speedConn = nil
+local SPEED_VALUE = 300  -- القصوى العملية (أعلى منها = تطرش من الخريطة!)
 
---------------------------------------------------------------------
--- 🔍 التقاط اللوح — من تحت قدميك مباشرة!
---------------------------------------------------------------------
-local function findPadUnderFeet()
-    local best = nil
-    local bestSize = math.huge
+local function maxEverything(char)
     pcall(function()
-        local myPos = getRoot().Position
-        for _, part in pairs(workspace:GetDescendants()) do
-            if part:IsA("BasePart") and part.Parent then
-                pcall(function()
-                    local dx = math.abs(part.Position.X - myPos.X)
-                    local dz = math.abs(part.Position.Z - myPos.Z)
-                    local dy = myPos.Y - part.Position.Y
-                    -- تحت قدميك مباشرة + ليس الأرضية الضخمة
-                    if dx < 6 and dz < 6 and dy > -4 and dy < 7 then
-                        local sz = part.Size.Magnitude
-                        if sz < 30 and sz < bestSize then
-                            bestSize = sz
-                            best = part
-                        end
-                    end
-                end)
+        -- ١. سرعة المشي العادية
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.WalkSpeed = SPEED_VALUE
+            hum.JumpPower = 120
+        end
+
+        -- ٢. سرعة الحمل (BodyVelocity المربوط بجسدك أثناء حمل الحيوان!)
+        for _, v in pairs(char:GetDescendants()) do
+            if v:IsA("BodyVelocity") then
+                v.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+                v.Velocity = v.Velocity.Unit * SPEED_VALUE
+            elseif v:IsA("AlignPosition") then
+                v.MaxForce = 1e9
             end
         end
     end)
-    return best
 end
 
---------------------------------------------------------------------
--- 🔥 الدوس عن بُعد (firetouchinterest!)
---------------------------------------------------------------------
-local function remoteTouch(pad)
-    local ok = pcall(function()
-        local char = player.Character
-        if not char then return end
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                firetouchinterest(part, pad, 0)
-            end
-        end
-        task.wait(0.15)
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                firetouchinterest(part, pad, 1)
-            end
-        end
-    end)
-    return ok
-end
+local function setSpeed(on)
+    if speedConn then
+        speedConn:Disconnect()
+        speedConn = nil
+    end
 
--- احتياط: وثبة خاطفة (0.25 ثانية!)
-local function quickTouch(padPos)
-    local ok = pcall(function()
-        local root = getRoot()
-        local old = root.CFrame
-        root.Anchored = true
-        root.CFrame = CFrame.new(padPos + Vector3.new(0, 2.5, 0))
-        task.wait(0.25)
-        root.CFrame = old
-        task.wait(0.05)
-        root.Anchored = false
-    end)
-    return ok
-end
-
---------------------------------------------------------------------
--- 🔴 مراقبة جدران الليزر (مؤشر انتهاء القفل!)
---------------------------------------------------------------------
-local function snapshotLasers(padPos)
-    local lasers = {}
-    pcall(function()
-        for _, part in pairs(workspace:GetDescendants()) do
-            if part:IsA("BasePart") then
-                pcall(function()
-                    if part.Color.R > 0.6 and part.Color.G < 0.35 and part.Color.B < 0.35
-                        and (part.Position - padPos).Magnitude < 120
-                        and part.Size.Magnitude < 60 then
-                        table.insert(lasers, part)
-                    end
-                end)
-            end
-        end
-    end)
-    return lasers
-end
-
-local function lasersAlive(lasers)
-    local alive = 0
-    for _, part in pairs(lasers) do
+    if on then
+        -- تطبيق فوري
         pcall(function()
-            if part.Parent ~= nil then alive = alive + 1 end
+            if player.Character then maxEverything(player.Character) end
+        end)
+
+        -- 🔥 الحراسة المستمرة:
+        -- أي شيء جديد في شخصيتك → نسرعوه!
+        -- أي تغيير سرعة من اللعبة → نعيدها القصوى!
+        speedConn = RunService or game:GetService("RunService")
+        speedConn = speedConn.Heartbeat:Connect(function()
+            pcall(function()
+                local char = player.Character
+                if char then maxEverything(char) end
+            end)
+        end)
+
+        -- ومراقبة الشخصية الجديدة عند Respawn
+        player.CharacterAdded:Connect(function(char)
+            if speedOn then
+                task.wait(0.5)
+                maxEverything(char)
+                char:WaitForChild("Humanoid")
+                char.Humanoid.WalkSpeed = SPEED_VALUE
+            end
+        end)
+    else
+        -- إيقاف: نرجع السرعة الطبيعية
+        pcall(function()
+            local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.WalkSpeed = 16
+                hum.JumpPower = 50
+            end
         end)
     end
-    return alive
-end
-
---------------------------------------------------------------------
--- الحالة
---------------------------------------------------------------------
-local autoLockOn = false
-
---------------------------------------------------------------------
--- 🔒 حلقة الحماية الدائمة
---------------------------------------------------------------------
-local function autoLockLoop()
-    task.spawn(function()
-        notify("🔒 Auto Lock", "جاري التقاط اللوح من تحت قدميك...")
-
-        local pad = findPadUnderFeet()
-        if not pad then
-            notify("❌ Auto Lock", "قف فوق الضوء الأصفر نفسه ثم فعّل الزر!", 5)
-            autoLockOn = false
-            return
-        end
-
-        local padPos = pad.Position
-        notify("✅ Pad Locked On!", "تم التقاط اللوح — جاري القفل الأول...", 3)
-
-        -- القفل الأول
-        local ok1 = remoteTouch(pad)
-        if not ok1 then quickTouch(padPos) end
-        task.wait(1.5)
-
-        -- التقاط الليزر بعد القفل
-        local lasers = snapshotLasers(padPos)
-        local useLasers = #lasers > 0
-
-        if useLasers then
-            notify("🛡️ محمي!", "سأعيد القفل لحظة انتهاء المدة تلقائياً — اذهب اسرق! ⚡", 5)
-        else
-            notify("🛡️ محمي!", "سأعيد القفل كل " .. FALLBACK_RETOUCH .. " ثانية — اذهب اسرق! ⚡", 5)
-        end
-
-        local lastTouch = os.clock()
-
-        -- الحلقة الدائمة
-        while autoLockOn do
-            task.wait(RECHECK_EVERY)
-
-            local expired = false
-            if useLasers then
-                if lasersAlive(lasers) == 0 then
-                    expired = true
-                end
-            end
-
-            local timedOut = (os.clock() - lastTouch) >= FALLBACK_RETOUCH
-
-            if expired or (not useLasers and timedOut) then
-                notify("🔒 Re-Locking!", "انتهى القفل — أعيد تنشيطه عن بُعد! ⚡", 2)
-
-                local ok = remoteTouch(pad)
-                if not ok then quickTouch(padPos) end
-                lastTouch = os.clock()
-
-                if useLasers then
-                    task.wait(2)
-                    lasers = snapshotLasers(padPos)
-                    if #lasers == 0 then
-                        useLasers = false -- الليزر لم يعد يظهر — نتحول للمؤقت
-                    end
-                end
-            end
-        end
-    end)
 end
 
 --------------------------------------------------------------------
@@ -201,7 +93,7 @@ if game.CoreGui:FindFirstChild("BrlinGui") then
 end
 
 --------------------------------------------------------------------
--- الواجهة
+-- الواجهة — زر واحد فقط
 --------------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BrlinGui"
@@ -227,25 +119,27 @@ Title.Parent = Frame
 local btn = Instance.new("TextButton")
 btn.Size = UDim2.new(1, -16, 0, 40)
 btn.Position = UDim2.new(0, 8, 0, 45)
-btn.Text = "🔒 Auto Lock Base [OFF]"
+btn.Text = "⚡ MAX SPEED [OFF]"
 btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
 btn.TextSize = 14
 btn.Parent = Frame
 
 btn.MouseButton1Click:Connect(function()
-    autoLockOn = not autoLockOn
-    if autoLockOn then
+    speedOn = not speedOn
+    if speedOn then
         btn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
-        btn.Text = "🔒 Auto Lock Base [ON]"
-        autoLockLoop()
+        btn.Text = "⚡ MAX SPEED [ON]"
+        setSpeed(true)
+        notify("⚡ MAX SPEED ON!", "أنت أسرع من طيارة! حتى بالحمل! ✈️")
     else
         btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-        btn.Text = "🔒 Auto Lock Base [OFF]"
-        notify("🔒 Auto Lock OFF", "تم الإيقاف", 3)
+        btn.Text = "⚡ MAX SPEED [OFF]"
+        setSpeed(false)
+        notify("⚡ Speed OFF", "رجعت سرعتك الطبيعية", 3)
     end
 end)
 
 --------------------------------------------------------------------
-notify("🧠 Brlin Funny Gamer", "Auto Lock v4 Loaded ✅")
-print("🧠 Brlin Auto Lock v4 Loaded! ✅")
+notify("🧠 Brlin Funny Gamer", "MAX SPEED Loaded ✅")
+print("🧠 Brlin Max Speed Loaded! ✅")
