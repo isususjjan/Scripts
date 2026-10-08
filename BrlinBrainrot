@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   v2.0 — Teleport + Full Spy (نظيف!)
+--   v2.1 — Teleport + Full Spy الشامل 📡
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -55,7 +55,7 @@ local function argsToString(args)
     for i, arg in ipairs(args) do
         local t = typeof(arg)
         local v = tostring(arg)
-        if #v > 90 then v = v:sub(1, 90) .. "..." end
+        if #v > 200 then v = v:sub(1, 200) .. "..." end
         info = info .. " [" .. i .. "]" .. t .. ":" .. v
     end
     if info == "" then info = " (empty)" end
@@ -95,19 +95,69 @@ local function addLog(msg)
     end)
 end
 
--- التجسس على الصادر — كل ما ترسله أنت للسيرفر!
+-- التجسس على الصادر — شامل كل طرق الإرسال!
 local function hookOutgoing()
     local ok, err = pcall(function()
+        -- ١. الطريقة الكلاسيكية (Namecall)
         local oldNamecall
         oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
             local method = getnamecallmethod()
             if (method == "FireServer" and self:IsA("RemoteEvent"))
-                or (method == "InvokeServer" and self:IsA("RemoteFunction")) then
+                or (method == "InvokeServer" and self:IsA("RemoteFunction"))
+                or (method == "FireServer" and tostring(self.ClassName):find("Unreliable") ~= nil) then
                 local args = {...}
                 local parentName = self.Parent and self.Parent.Name or "?"
-                addLog("📤 OUT " .. method .. " @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
+                addLog("📤 OUT(namecall) @[" .. parentName .. "/" .. self.Name .. "]" .. argsToString(args))
             end
             return oldNamecall(self, ...)
+        end)
+
+        -- ٢. مراقبة كل الريموتات المعروفة والجديدة!
+        local remotesToWatch = {}
+        local function watchRemote(obj)
+            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") or obj:IsA("UnreliableRemoteEvent") then
+                remotesToWatch[obj] = true
+            end
+        end
+        local function scanForRemotes(folder, depth)
+            if depth > 4 then return end
+            pcall(function()
+                for _, obj in pairs(folder:GetChildren()) do
+                    watchRemote(obj)
+                    scanForRemotes(obj, depth + 1)
+                end
+            end)
+        end
+        scanForRemotes(game.ReplicatedStorage, 0)
+        scanForRemotes(workspace, 0)
+
+        -- نراقب حتى الجديدة التي تُنشأ لاحقاً!
+        game.DescendantAdded:Connect(function(obj)
+            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") or obj:IsA("UnreliableRemoteEvent") then
+                watchRemote(obj)
+            end
+        end)
+
+        -- ٣. ربط يدوي بكل Remote معروف + الجديد!
+        task.spawn(function()
+            while true do
+                pcall(function()
+                    for remote, _ in pairs(remotesToWatch) do
+                        if remote.Parent == nil then
+                            remotesToWatch[remote] = nil
+                        elseif not remote:GetAttribute("BrlinHooked") then
+                            remote:SetAttribute("BrlinHooked", true)
+                            if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+                                local rPath = remote:GetFullName():sub(1, 60)
+                                remote.OnClientEvent:Connect(function(...)
+                                    addLog("📥 IN2 " .. rPath .. argsToString({...}))
+                                end)
+                            end
+                        end
+                    end
+                end)
+                task.wait(2)
+            end
         end)
     end)
     if not ok then
@@ -116,13 +166,13 @@ local function hookOutgoing()
     return ok
 end
 
--- التجسس على الوارد — كل ما يصلك من السيرفر
+-- التجسس على الوارد — كل الريموتات في اللعبة كلها!
 local function hookIncoming()
     local ok = pcall(function()
         local function listen(folder, path, depth)
             if depth > 4 then return end
             for _, obj in pairs(folder:GetChildren()) do
-                if obj:IsA("RemoteEvent") then
+                if obj:IsA("RemoteEvent") or obj:IsA("UnreliableRemoteEvent") then
                     local rPath = path .. "/" .. obj.Name
                     obj.OnClientEvent:Connect(function(...)
                         addLog("📥 IN " .. rPath .. argsToString({...}))
@@ -132,6 +182,7 @@ local function hookIncoming()
             end
         end
         listen(game.ReplicatedStorage, "RS", 0)
+        listen(workspace, "WS", 0)
     end)
     return ok
 end
@@ -324,8 +375,8 @@ end)
 --------------------------------------------------------------------
 game.StarterGui:SetCore("SendNotification", {
     Title = "🧠 Brlin Funny Gamer",
-    Text = "v2.0 Loaded ✅",
+    Text = "v2.1 Loaded ✅",
     Duration = 5
 })
 
-print("🧠 Brlin v2.0 Loaded! ✅")
+print("🧠 Brlin v2.1 Loaded! ✅")
