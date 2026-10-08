@@ -1,146 +1,90 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   🔒 Auto Lock Base v3 — الأصفر + عن بعد!
+--   🔒 Auto Lock v4 — Stand & Protect!
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
+local RunService = game:GetService("RunService")
 
 local function getRoot()
     local char = player.Character or player.CharacterAdded:Wait()
     return char:WaitForChild("HumanoidRootPart")
 end
 
---------------------------------------------------------------------
--- 🔍 إيجاد لوحك الأصفر (قاعدتك أنت فقط!)
---------------------------------------------------------------------
-local function findMyYellowPad()
-    local result = nil
+local function notify(title, text, dur)
     pcall(function()
-        local myName = string.lower(player.Name)
-        local dispName = string.lower(player.DisplayName or "")
-        
-        -- ١. نجد قاعدتك عبر لافتة اسمك
-        local myBase = nil
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("TextLabel") then
-                local txt = ""
-                pcall(function() txt = string.lower(obj.Text or "") end)
-                if (myName ~= "" and txt:find(myName, 1, true))
-                    or (dispName ~= "" and txt:find(dispName, 1, true)) then
-                    local base = obj
-                    for _ = 1, 5 do
-                        if base.Parent and base.Parent ~= workspace then
-                            base = base.Parent
-                        else
-                            break
-                        end
-                    end
-                    if base ~= workspace then
-                        myBase = base
-                        break
-                    end
-                end
-            end
-        end
-
-        -- ٢. في قاعدتك: ندور على Part أصفر (اللوح!)
-        if myBase then
-            pcall(function()
-                for _, part in pairs(myBase:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        local isYellow = false
-                        pcall(function()
-                            -- الأصفر: أحمر عالي + أخضر عالي + أزرق منخفض
-                            if part.Color.R > 0.7 and part.Color.G > 0.6 and part.Color.B < 0.4 then
-                                isYellow = true
-                            end
-                        end)
-                        if isYellow then
-                            result = {
-                                pad = part,
-                                name = part.Name
-                            }
-                            return
-                        end
-                    end
-                end
-            end)
-        end
-
-        -- ٣. احتياط: أقرب Part أصفر لموقعك (وأنت داخل قاعدتك!)
-        if result == nil then
-            pcall(function()
-                local myPos = getRoot().Position
-                local bestDist = 100
-                for _, part in pairs(workspace:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        local isYellow = false
-                        pcall(function()
-                            if part.Color.R > 0.7 and part.Color.G > 0.6 and part.Color.B < 0.4
-                                and part.Transparency < 0.7 and part.Size.Magnitude < 30 then
-                                isYellow = true
-                            end
-                        end)
-                        if isYellow then
-                            local dist = (part.Position - myPos).Magnitude
-                            if dist < bestDist then
-                                bestDist = dist
-                                result = {
-                                    pad = part,
-                                    name = part.Name,
-                                    dist = math.floor(dist)
-                                }
-                            end
-                        end
-                    end
-                end
-            end)
-        end
+        game.StarterGui:SetCore("SendNotification", {
+            Title = title, Text = text, Duration = dur or 3
+        })
     end)
-    return result
 end
 
 --------------------------------------------------------------------
--- 🔥 الحدث اللمسي عن بعد!
+-- ⚙️ الإعدادات
+--------------------------------------------------------------------
+local RECHECK_EVERY = 2      -- فحص الليزر كل ثانيتين
+local FALLBACK_RETOUCH = 20  -- احتياط: إعادة دوس كل 20 ثانية إن لم نجد ليزر
+
+--------------------------------------------------------------------
+-- 🔍 التقاط اللوح — من تحت قدميك مباشرة!
+--------------------------------------------------------------------
+local function findPadUnderFeet()
+    local best = nil
+    local bestSize = math.huge
+    pcall(function()
+        local myPos = getRoot().Position
+        for _, part in pairs(workspace:GetDescendants()) do
+            if part:IsA("BasePart") and part.Parent then
+                pcall(function()
+                    local dx = math.abs(part.Position.X - myPos.X)
+                    local dz = math.abs(part.Position.Z - myPos.Z)
+                    local dy = myPos.Y - part.Position.Y
+                    -- تحت قدميك مباشرة + ليس الأرضية الضخمة
+                    if dx < 6 and dz < 6 and dy > -4 and dy < 7 then
+                        local sz = part.Size.Magnitude
+                        if sz < 30 and sz < bestSize then
+                            bestSize = sz
+                            best = part
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+    return best
+end
+
+--------------------------------------------------------------------
+-- 🔥 الدوس عن بُعد (firetouchinterest!)
 --------------------------------------------------------------------
 local function remoteTouch(pad)
-    local ok, err = pcall(function()
-        local root = getRoot()
+    local ok = pcall(function()
         local char = player.Character
         if not char then return end
-        
-        -- نجمع أجزاء جسدك الحقيقية
-        local touched = false
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
-                pcall(function()
-                    firetouchinterest(part, pad, 0) -- بداية لمس
-                    touched = true
-                end)
+                firetouchinterest(part, pad, 0)
             end
         end
         task.wait(0.15)
         for _, part in pairs(char:GetDescendants()) do
             if part:IsA("BasePart") then
-                pcall(function()
-                    firetouchinterest(part, pad, 1) -- نهاية لمس
-                end)
+                firetouchinterest(part, pad, 1)
             end
         end
-        return touched
     end)
     return ok
 end
 
--- الطريقة ٢: TP الدقيق (0.2 ثانية فقط!)
-local function quickTouchPad(pad)
+-- احتياط: وثبة خاطفة (0.25 ثانية!)
+local function quickTouch(padPos)
     local ok = pcall(function()
         local root = getRoot()
-        local oldCF = root.CFrame
+        local old = root.CFrame
         root.Anchored = true
-        root.CFrame = pad.CFrame + Vector3.new(0, 2, 0)
-        task.wait(0.2)
-        root.CFrame = oldCF
+        root.CFrame = CFrame.new(padPos + Vector3.new(0, 2.5, 0))
+        task.wait(0.25)
+        root.CFrame = old
         task.wait(0.05)
         root.Anchored = false
     end)
@@ -148,82 +92,102 @@ local function quickTouchPad(pad)
 end
 
 --------------------------------------------------------------------
--- الحالة + الحلقة
+-- 🔴 مراقبة جدران الليزر (مؤشر انتهاء القفل!)
+--------------------------------------------------------------------
+local function snapshotLasers(padPos)
+    local lasers = {}
+    pcall(function()
+        for _, part in pairs(workspace:GetDescendants()) do
+            if part:IsA("BasePart") then
+                pcall(function()
+                    if part.Color.R > 0.6 and part.Color.G < 0.35 and part.Color.B < 0.35
+                        and (part.Position - padPos).Magnitude < 120
+                        and part.Size.Magnitude < 60 then
+                        table.insert(lasers, part)
+                    end
+                end)
+            end
+        end
+    end)
+    return lasers
+end
+
+local function lasersAlive(lasers)
+    local alive = 0
+    for _, part in pairs(lasers) do
+        pcall(function()
+            if part.Parent ~= nil then alive = alive + 1 end
+        end)
+    end
+    return alive
+end
+
+--------------------------------------------------------------------
+-- الحالة
 --------------------------------------------------------------------
 local autoLockOn = false
-local lockThread = nil
 
+--------------------------------------------------------------------
+-- 🔒 حلقة الحماية الدائمة
+--------------------------------------------------------------------
 local function autoLockLoop()
     task.spawn(function()
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "🔒 Auto Lock",
-            Text = "جاري البحث عن لوحك الأصفر...",
-            Duration = 4
-        })
+        notify("🔒 Auto Lock", "جاري التقاط اللوح من تحت قدميك...")
 
-        local padInfo = findMyYellowPad()
-
-        if not padInfo then
-            game.StarterGui:SetCore("SendNotification", {
-                Title = "❌ Auto Lock",
-                Text = "لم أجد اللوح الأصفر! قف داخل قاعدتك وأعد المحاولة",
-                Duration = 5
-            })
+        local pad = findPadUnderFeet()
+        if not pad then
+            notify("❌ Auto Lock", "قف فوق الضوء الأصفر نفسه ثم فعّل الزر!", 5)
             autoLockOn = false
             return
         end
 
-        local pad = padInfo.pad
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "✅ Yellow Pad Found!",
-            Text = padInfo.name .. (padInfo.dist and (" 📏" .. padInfo.dist .. "m") or " ✅"),
-            Duration = 4
-        })
+        local padPos = pad.Position
+        notify("✅ Pad Locked On!", "تم التقاط اللوح — جاري القفل الأول...", 3)
 
-        -- ١. أول قفل فوري (عن بعد!)
-        local method1 = remoteTouch(pad)
-        if not method1 then
-            quickTouchPad(pad)
+        -- القفل الأول
+        local ok1 = remoteTouch(pad)
+        if not ok1 then quickTouch(padPos) end
+        task.wait(1.5)
+
+        -- التقاط الليزر بعد القفل
+        local lasers = snapshotLasers(padPos)
+        local useLasers = #lasers > 0
+
+        if useLasers then
+            notify("🛡️ محمي!", "سأعيد القفل لحظة انتهاء المدة تلقائياً — اذهب اسرق! ⚡", 5)
+        else
+            notify("🛡️ محمي!", "سأعيد القفل كل " .. FALLBACK_RETOUCH .. " ثانية — اذهب اسرق! ⚡", 5)
         end
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "🔒 First Lock!",
-            Text = "تم القفل الأول! (الطريقة: " .. (method1 and "fire touch" or "quick tp") .. ")",
-            Duration = 4
-        })
 
-        -- ٢. الحلقة: نراقب اللوح — انطفأ الأصفر = انتهى الوقت → نعيد الدوس!
+        local lastTouch = os.clock()
+
+        -- الحلقة الدائمة
         while autoLockOn do
-            task.wait(2)
+            task.wait(RECHECK_EVERY)
 
-            local padExists = false
-            local stillYellow = false
-            pcall(function()
-                if pad and pad.Parent then
-                    padExists = true
-                    -- هل ما زال أصفر مشعاً؟
-                    if pad.Color.R > 0.6 and pad.Color.G > 0.5 and pad.Transparency < 0.8 then
-                        stillYellow = true
+            local expired = false
+            if useLasers then
+                if lasersAlive(lasers) == 0 then
+                    expired = true
+                end
+            end
+
+            local timedOut = (os.clock() - lastTouch) >= FALLBACK_RETOUCH
+
+            if expired or (not useLasers and timedOut) then
+                notify("🔒 Re-Locking!", "انتهى القفل — أعيد تنشيطه عن بُعد! ⚡", 2)
+
+                local ok = remoteTouch(pad)
+                if not ok then quickTouch(padPos) end
+                lastTouch = os.clock()
+
+                if useLasers then
+                    task.wait(2)
+                    lasers = snapshotLasers(padPos)
+                    if #lasers == 0 then
+                        useLasers = false -- الليزر لم يعد يظهر — نتحول للمؤقت
                     end
                 end
-            end)
-
-            -- انتهى القفل! (اللوح اختفى أو فقد لونه أو انطفأ)
-            if (not padExists) or (not stillYellow) then
-                addLog = addLog -- (بدون شيء)
-                game.StarterGui:SetCore("SendNotification", {
-                    Title = "🔒 Re-Locking!",
-                    Text = "انتهى وقت القفل — نعيد التنشيط عن بعد! ⚡",
-                    Duration = 2
-                })
-
-                -- نعيد المحاولة بالطريقتين!
-                local ok1 = remoteTouch(pad)
-                if not ok1 then
-                    quickTouchPad(pad)
-                end
-
-                -- ننتظر حتى يشتغل القفل مجدداً
-                task.wait(3)
             end
         end
     end)
@@ -278,19 +242,10 @@ btn.MouseButton1Click:Connect(function()
     else
         btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
         btn.Text = "🔒 Auto Lock Base [OFF]"
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "🔒 Auto Lock OFF",
-            Text = "تم الإيقاف",
-            Duration = 3
-        })
+        notify("🔒 Auto Lock OFF", "تم الإيقاف", 3)
     end
 end)
 
 --------------------------------------------------------------------
-game.StarterGui:SetCore("SendNotification", {
-    Title = "🧠 Brlin Funny Gamer",
-    Text = "Auto Lock v3 (Yellow+Remote) ✅",
-    Duration = 5
-})
-
-print("🧠 Brlin Auto Lock v3 Loaded! ✅")
+notify("🧠 Brlin Funny Gamer", "Auto Lock v4 Loaded ✅")
+print("🧠 Brlin Auto Lock v4 Loaded! ✅")
