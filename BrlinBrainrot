@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   🧠 Brlin Funny Gamer — Steal a Brainrot 🧠
---   v3.0 — Teleport + Noclip + Spy + STEAL LIST!
+--   v3.1 — Teleport + Noclip + ANTI-KICK 🛡️
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -44,7 +44,7 @@ local function clearCFrame()
 end
 
 --------------------------------------------------------------------
--- 👻 Noclip
+-- 👻 Noclip — المرور عبر جدران الليزر!
 --------------------------------------------------------------------
 local noclipOn = false
 local noclipConn = nil
@@ -72,46 +72,55 @@ local function setNoclip(on)
 end
 
 --------------------------------------------------------------------
--- 🧠 STEAL SYSTEM — الصيد بضغطة!
+-- 🛡️ ANTI-KICK — مضاد الطرد الذكي!
+-- يراقب موقعك، وإذا انحرفت بسرعة قاسية (طرد!)
+-- يعيدك فوراً إلى نقطة الحفظ!
 --------------------------------------------------------------------
-local function findBrainrots()
-    local list = {}
-    pcall(function()
-        local myPos = getRoot().Position
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("RemoteEvent") and obj.Name == "Remote" then
-                local model = obj.Parent
-                if model and model:IsA("Model") then
-                    local pp = model:FindFirstChild("HumanoidRootPart")
-                        or model:FindFirstChildWhichIsA("BasePart")
-                    local dist = 0
-                    if pp then
-                        dist = math.floor((pp.Position - myPos).Magnitude)
-                    end
-                    table.insert(list, {
-                        model = model,
-                        remote = obj,
-                        name = model.Name,
-                        dist = dist
+local antiKickOn = false
+local antiKickConn = nil
+local lastPos = nil
+
+local function setAntiKick(on)
+    antiKickOn = on
+    if antiKickConn then
+        antiKickConn:Disconnect()
+        antiKickConn = nil
+    end
+    lastPos = nil
+    if on then
+        if SavedCFrame == nil then return false end
+        lastPos = getRoot().Position
+        antiKickConn = RunService.Heartbeat:Connect(function()
+            pcall(function()
+                local root = getRoot()
+                local current = root.Position
+
+                -- انحرف كثيراً عن آخر موقع؟
+                local delta = (current - lastPos).Magnitude
+
+                -- قذفة عملاقة خلال إطار واحد = هذا طرد وليس مشي!
+                if delta > 40 then
+                    -- طرد! نرجع لنقطة الحفظ فوراً!
+                    root.Anchored = true
+                    root.CFrame = SavedCFrame + Vector3.new(0, 3, 0)
+                    task.wait(0.03)
+                    root.Anchored = false
+                    current = root.Position
+                    game.StarterGui:SetCore("SendNotification", {
+                        Title = "🛡️ KICK BLOCKED!",
+                        Text = "طردك؟ رجعناك! 😎",
+                        Duration = 2
                     })
                 end
-            end
-        end
-        -- ترتيب من الأقرب للأبعد
-        table.sort(list, function(a, b) return a.dist < b.dist end)
-    end)
-    return list
-end
 
-local function attemptSteal(entry)
-    local ok, err = pcall(function()
-        entry.remote:FireServer("Stolen")
-    end)
-    game.StarterGui:SetCore("SendNotification", {
-        Title = ok and "🧠 Steal Sent!" or "❌ Failed",
-        Text = ok and (entry.name .. " ← Stolen ✅") or tostring(err):sub(1, 50),
-        Duration = 3
-    })
+                -- تحديث آخر موقع (بحدود مشي عادي)
+                if (current - lastPos).Magnitude < 20 then
+                    lastPos = current
+                end
+            end)
+        end)
+    end
+    return true
 end
 
 --------------------------------------------------------------------
@@ -268,7 +277,7 @@ local function showLiveWindow()
 end
 
 --------------------------------------------------------------------
--- نافذة Steal List — قائمة السطو!
+-- نافذة Steal List
 --------------------------------------------------------------------
 local function showStealWindow()
     local ok, err = pcall(function()
@@ -276,7 +285,30 @@ local function showStealWindow()
         local old = game.CoreGui.BrlinGui:FindFirstChild("StealFrame")
         if old then old:Destroy() end
 
-        local brainrots = findBrainrots()
+        local brainrots = {}
+        pcall(function()
+            local myPos = getRoot().Position
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("RemoteEvent") and obj.Name == "Remote" then
+                    local model = obj.Parent
+                    if model and model:IsA("Model") then
+                        local pp = model:FindFirstChild("HumanoidRootPart")
+                            or model:FindFirstChildWhichIsA("BasePart")
+                        local dist = 0
+                        if pp then
+                            dist = math.floor((pp.Position - myPos).Magnitude)
+                        end
+                        table.insert(brainrots, {
+                            model = model,
+                            remote = obj,
+                            name = model.Name,
+                            dist = dist
+                        })
+                    end
+                end
+            end
+            table.sort(brainrots, function(a, b) return a.dist < b.dist end)
+        end)
 
         local SF = Instance.new("Frame")
         SF.Name = "StealFrame"
@@ -295,18 +327,9 @@ local function showStealWindow()
         STitle.TextSize = 14
         STitle.Parent = SF
 
-        local hint = Instance.new("TextLabel")
-        hint.Size = UDim2.new(1, 0, 0, 18)
-        hint.Position = UDim2.new(0, 0, 0, 26)
-        hint.Text = "اضغط أي حيوان لإرسال Stolen له!"
-        hint.TextColor3 = Color3.fromRGB(180, 180, 180)
-        hint.BackgroundTransparency = 1
-        hint.TextSize = 11
-        hint.Parent = SF
-
         local Scroll = Instance.new("ScrollingFrame")
-        Scroll.Size = UDim2.new(1, -10, 1, -55)
-        Scroll.Position = UDim2.new(0, 5, 0, 48)
+        Scroll.Size = UDim2.new(1, -10, 1, -40)
+        Scroll.Position = UDim2.new(0, 5, 0, 35)
         Scroll.BackgroundColor3 = Color3.fromRGB(8, 15, 8)
         Scroll.ScrollBarThickness = 6
         Scroll.CanvasSize = UDim2.new(0, 0, 0, math.max(1, #brainrots) * 40)
@@ -315,7 +338,7 @@ local function showStealWindow()
         if #brainrots == 0 then
             local lbl = Instance.new("TextLabel")
             lbl.Size = UDim2.new(1, -8, 0, 40)
-            lbl.Text = "❌ لا يوجد Brainrots ظاهرة الآن!"
+            lbl.Text = "❌ لا يوجد!"
             lbl.TextColor3 = Color3.fromRGB(255, 100, 100)
             lbl.BackgroundTransparency = 1
             lbl.TextSize = 13
@@ -332,17 +355,10 @@ local function showStealWindow()
             btn.TextSize = 12
             btn.Parent = Scroll
             btn.MouseButton1Click:Connect(function()
-                attemptSteal(entry)
+                pcall(function() entry.remote:FireServer("Stolen") end)
             end)
         end
     end)
-    if not ok then
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Steal List ❌",
-            Text = tostring(err):sub(1, 60),
-            Duration = 4
-        })
-    end
 end
 
 --------------------------------------------------------------------
@@ -361,8 +377,8 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 345)
-Frame.Position = UDim2.new(0, 20, 0, 120)
+Frame.Size = UDim2.new(0, 220, 0, 385)
+Frame.Position = UDim2.new(0, 20, 0, 100)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 Frame.Active = true
 Frame.Draggable = true
@@ -430,7 +446,7 @@ end
 -- الأزرار
 --------------------------------------------------------------------
 
-makeButton("🧠  STEAL LIST — قائمة السطو!", 55, function()
+makeButton("🧠  STEAL LIST", 55, function()
     showStealWindow()
 end)
 
@@ -472,6 +488,11 @@ makeButton("🚀  Tp", 133, function()
 end)
 
 makeButton("🗑️  Remove Teleport", 172, function()
+    -- إطفاء Anti-Kick إذا شغال (لا حراسة على نقطة محذوفة!)
+    if antiKickOn then
+        antiKickOn = false
+        setAntiKick(false)
+    end
     clearCFrame()
     updateStatus()
     game.StarterGui:SetCore("SendNotification", {
@@ -485,7 +506,33 @@ makeToggleButton("👻 Noclip [OFF]", 211, function(on)
     setNoclip(on)
 end)
 
-makeButton("📡  Full Spy", 250, function()
+-- ⭐ الزر الجديد — مضاد الطرد!
+makeToggleButton("🛡️ Anti-Kick [OFF]", 250, function(on)
+    if on then
+        if SavedCFrame == nil then
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "❌ No Save!",
+                Text = "اضغط Set **داخل** القاعدة أولاً!",
+                Duration = 3
+            })
+            -- إعادة الزر إلى OFF (نحاكي فشل التفعيل)
+            task.wait(0.1)
+            return
+        end
+        local ok = setAntiKick(true)
+        if ok then
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "🛡️ Anti-Kick ON!",
+                Text = "الطرد؟ لا يعمل عليك 😎",
+                Duration = 3
+            })
+        end
+    else
+        setAntiKick(false)
+    end
+end)
+
+makeButton("📡  Full Spy", 289, function()
     if not spyActive then
         local outOk = hookOutgoing()
         local inOk = hookIncoming()
@@ -495,15 +542,15 @@ makeButton("📡  Full Spy", 250, function()
     showLiveWindow()
 end)
 
-makeButton("📜  عرض رسائل التجسس", 289, function()
+makeButton("📜  عرض رسائل التجسس", 328, function()
     showLiveWindow()
 end)
 
 --------------------------------------------------------------------
 game.StarterGui:SetCore("SendNotification", {
     Title = "🧠 Brlin Funny Gamer",
-    Text = "v3.0 STEAL SYSTEM ✅",
+    Text = "v3.1 Anti-Kick ✅",
     Duration = 5
 })
 
-print("🧠 Brlin v3.0 Loaded! ✅")
+print("🧠 Brlin v3.1 Loaded! ✅")
