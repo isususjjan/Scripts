@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v1.1 — Steal a Brainrot
+--   v1.2 — Steal a Brainrot
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -43,14 +43,14 @@ local function clearCFrame()
 end
 
 --------------------------------------------------------------------
--- الألوان الثابتة (هويتك!)
+-- الألوان
 --------------------------------------------------------------------
-local C_BG        = Color3.fromRGB(15, 15, 15)
-local C_RED       = Color3.fromRGB(200, 30, 30)
-local C_WHITE     = Color3.fromRGB(255, 255, 255)
+local C_BG    = Color3.fromRGB(15, 15, 15)
+local C_RED   = Color3.fromRGB(200, 30, 30)
+local C_WHITE = Color3.fromRGB(255, 255, 255)
 
 --------------------------------------------------------------------
--- تدمير أي واجهة قديمة
+-- تدمير الواجهات القديمة
 --------------------------------------------------------------------
 if game.CoreGui:FindFirstChild("BrlinMenu") then
     game.CoreGui:FindFirstChild("BrlinMenu"):Destroy()
@@ -60,14 +60,13 @@ if game.CoreGui:FindFirstChild("BrlinCircle") then
 end
 
 --------------------------------------------------------------------
--- بناء الواجهة
+-- الواجهة الرئيسية
 --------------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BrlinMenu"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
--- ═══ الإطار الرئيسي + إطار أحمر دائري ═══
 local Frame = Instance.new("Frame")
 Frame.Size = UDim2.new(0, 260, 0, 390)
 Frame.Position = UDim2.new(0.5, -130, 0.5, -195)
@@ -87,7 +86,7 @@ local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(0, 8)
 Corner.Parent = Frame
 
--- ═══ اسم المطور (أبيض) ═══
+-- اسم المطور
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
@@ -97,7 +96,7 @@ Title.TextSize = 17
 Title.Font = Enum.Font.GothamBold
 Title.Parent = Frame
 
--- ═══ خط أبيض فاصل ═══
+-- خط أبيض فاصل ١
 local Line1 = Instance.new("Frame")
 Line1.Size = UDim2.new(1, -20, 0, 2)
 Line1.Position = UDim2.new(0, 10, 0, 42)
@@ -105,7 +104,7 @@ Line1.BackgroundColor3 = C_WHITE
 Line1.BorderSizePixel = 0
 Line1.Parent = Frame
 
--- ═══ Category الحالة (أسود + حواف حمراء) ═══
+-- Category الحالة (Saved/No Save)
 local Category = Instance.new("Frame")
 Category.Size = UDim2.new(1, -24, 0, 45)
 Category.Position = UDim2.new(0, 12, 0, 52)
@@ -131,7 +130,7 @@ StatusText.TextSize = 16
 StatusText.Font = Enum.Font.GothamBold
 StatusText.Parent = Category
 
--- ═══ خط أبيض فاصل ثاني ═══
+-- خط أبيض فاصل ٢
 local Line2 = Instance.new("Frame")
 Line2.Size = UDim2.new(1, -20, 0, 2)
 Line2.Position = UDim2.new(0, 10, 0, 107)
@@ -139,38 +138,23 @@ Line2.BackgroundColor3 = C_WHITE
 Line2.BorderSizePixel = 0
 Line2.Parent = Frame
 
--- ═══ ⭐ الـ Category الكبيرة للأزرار (إطار أحمر يحيط بالأزرار الأربعة!) ═══
-local ButtonsCategory = Instance.new("Frame")
-ButtonsCategory.Size = UDim2.new(1, -24, 0, 210)
-ButtonsCategory.Position = UDim2.new(0, 12, 0, 118)
-ButtonsCategory.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-ButtonsCategory.BorderSizePixel = 0
-ButtonsCategory.Parent = Frame
-
-local BtnCatBorder = Instance.new("UIStroke")
-BtnCatBorder.Color = C_RED
-BtnCatBorder.Thickness = 1.5
-BtnCatBorder.Parent = ButtonsCategory
-
-local BtnCatCorner = Instance.new("UICorner")
-BtnCatCorner.CornerRadius = UDim.new(0, 6)
-BtnCatCorner.Parent = ButtonsCategory
-
--- ═══ دالة الأزرار (داخل الـ Category الكبيرة!) ═══
+-- ═══ دالة الأزرار — كل زر = مربع أسود + إطار أحمر يحيط به (مثل Saved بالضبط!) ═══
 local function makeButton(text, yPos, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -24, 0, 40)
+    btn.Size = UDim2.new(1, -24, 0, 45)
     btn.Position = UDim2.new(0, 12, 0, yPos)
     btn.Text = text
     btn.TextColor3 = C_WHITE
-    btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     btn.TextSize = 15
     btn.Font = Enum.Font.GothamBold
-    btn.Parent = ButtonsCategory
+    btn.Parent = Frame
 
+    -- ⭐ إطار أحمر يحيط بالزر نفسه (مثل Category السفلي!)
     local stroke = Instance.new("UIStroke")
     stroke.Color = C_RED
     stroke.Thickness = 1.5
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Parent = btn
 
     local corner = Instance.new("UICorner")
@@ -178,28 +162,28 @@ local function makeButton(text, yPos, callback)
     corner.Parent = btn
 
     btn.MouseEnter:Connect(function()
-        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     end)
     btn.MouseLeave:Connect(function()
-        btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     end)
 
     btn.MouseButton1Click:Connect(callback)
 end
 
 --------------------------------------------------------------------
--- الأزرار الأربعة (داخل Category الأزرار!)
+-- الأزرار الأربعة — مباشرة في Frame (بلا Category مجمّعة!)
 --------------------------------------------------------------------
 
--- ١. Set 💥 — بلا توست!
-makeButton("Set 💥", 10, function()
+-- ١. Set 💥
+makeButton("Set 💥", 119, function()
     local root = getRoot()
     saveCFrame(root.CFrame)
     StatusText.Text = "✅ Saved"
 end)
 
 -- ٢. Tp 🎩
-makeButton("Tp 🎩", 57, function()
+makeButton("Tp 🎩", 172, function()
     if SavedCFrame == nil then
         StatusText.Text = "❌ No Save"
         return
@@ -224,7 +208,7 @@ makeButton("Tp 🎩", 57, function()
 end)
 
 -- ٣. Remove Set 🗑️
-makeButton("Remove Set 🗑️", 104, function()
+makeButton("Remove Set 🗑️", 225, function()
     clearCFrame()
     StatusText.Text = "❌ No Save"
     pcall(function()
@@ -236,14 +220,8 @@ makeButton("Remove Set 🗑️", 104, function()
     end)
 end)
 
--- ٤. Close Menu ❌
-makeButton("Close Menu ❌", 151, function()
-    Frame.Visible = false
-    CircleBtn.Visible = true
-end)
-
 --------------------------------------------------------------------
--- 🖤 الدائرة السوداء — قابلة للسحب بالإصبع! (التعديل الثالث!)
+-- 🖤 الدائرة B — تُبنى هنا مباشرة (قبل استخدامها في Close!)
 --------------------------------------------------------------------
 local CircleGui = Instance.new("ScreenGui")
 CircleGui.Name = "BrlinCircle"
@@ -260,7 +238,6 @@ CircleBtn.TextSize = 24
 CircleBtn.Font = Enum.Font.GothamBlack
 CircleBtn.Visible = false
 CircleBtn.Active = true
-CircleBtn.Draggable = true          -- ⭐ السحب بالإصبع لأي مكان!
 CircleBtn.Parent = CircleGui
 
 local CircleShape = Instance.new("UICorner")
@@ -272,14 +249,12 @@ CircleStroke.Color = C_RED
 CircleStroke.Thickness = 1.5
 CircleStroke.Parent = CircleBtn
 
-CircleBtn.MouseEnter:Connect(function()
-    CircleBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-end)
-CircleBtn.MouseLeave:Connect(function()
-    CircleBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+CircleBtn.MouseButton1Click:Connect(function()
+    Frame.Visible = true
+    CircleBtn.Visible = false
 end)
 
--- ⭐ سحب سلس باللمس (مثالي للموبايل!) — يعمل مع Dragging الفعلي
+-- ⭐ السحب بالإصبع (لأي مكان!)
 local UserInputService = game:GetService("UserInputService")
 local dragging = false
 local dragStart = nil
@@ -310,9 +285,12 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-CircleBtn.MouseButton1Click:Connect(function()
-    Frame.Visible = true
-    CircleBtn.Visible = false
+--------------------------------------------------------------------
+-- ٤. Close Menu ❌ — الربط النظيف الوحيد!
+--------------------------------------------------------------------
+makeButton("Close Menu ❌", 278, function()
+    Frame.Visible = false
+    CircleBtn.Visible = true
 end)
 
 --------------------------------------------------------------------
@@ -326,4 +304,4 @@ game.StarterGui:SetCore("SendNotification", {
     Duration = 4
 })
 
-print("🧠 Brlin Teleport Menu v1.1 Loaded! ✅")
+print("🧠 Brlin Teleport Menu v1.2 Loaded! ✅")
