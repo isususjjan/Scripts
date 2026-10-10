@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v2.3 — Down Earth (Collision Off + Ghost Floor!) 🕳️
+--   v2.4 — Ghost Floor + Y-Lock (الدمج النهائي!) 🕳️
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -22,7 +22,7 @@ end
 --------------------------------------------------------------------
 -- ⚙️ الإعدادات
 --------------------------------------------------------------------
-local UNDERGROUND_OFFSET = -8   -- العمق (آمن!)
+local UNDERGROUND_OFFSET = -8   -- العمق تحت الأرض
 
 --------------------------------------------------------------------
 -- نظام الحفظ الدائم
@@ -64,7 +64,7 @@ local C_RED   = Color3.fromRGB(200, 30, 30)
 local C_WHITE = Color3.fromRGB(255, 255, 255)
 
 --------------------------------------------------------------------
--- 🕳️ Down Earth — Collision Off أولاً → نزول مباشر → أرضية شبحية!
+-- 🕳️ Down Earth — Ghost Floor + Y-Lock!
 --------------------------------------------------------------------
 local earthOn = false
 local earthConn = nil
@@ -72,7 +72,7 @@ local undergroundFloor = nil
 local savedEarthY = nil
 local undergroundY = nil
 
--- إطفاء/تشغيل التصادم
+-- إطفاء/تشغيل تصادم الشخصية
 local function setCharCollision(char, on)
     pcall(function()
         for _, part in pairs(char:GetDescendants()) do
@@ -90,18 +90,7 @@ local function startDownEarth()
     savedEarthY = root.Position.Y
     undergroundY = root.Position.Y + UNDERGROUND_OFFSET
     
-    -- ١. ⭐ نطفئ التصادم أولاً — حتى لا تقاومنا الأرض أثناء النزول!
-    if char then
-        setCharCollision(char, false)
-    end
-
-    -- ٢. النزول المباشر (مثل v1.3 المجربة والناجحة!)
-    root.Anchored = true
-    root.CFrame = CFrame.new(root.Position.X, undergroundY, root.Position.Z)
-    task.wait(0.15)
-    root.Anchored = false
-
-    -- ٣. الأرضية الشبحية تحت قدميك!
+    -- ١. ⭐ الأرضية الشبحية تُنشأ أولاً — تنتظرك تحت!
     if not undergroundFloor then
         undergroundFloor = Instance.new("Part")
         undergroundFloor.Name = "BrlinGhostFloor"
@@ -111,8 +100,20 @@ local function startDownEarth()
         undergroundFloor.CanCollide = true
         undergroundFloor.Parent = workspace
     end
+    undergroundFloor.CFrame = CFrame.new(root.Position.X, undergroundY - 3.5, root.Position.Z)
 
-    -- ٤. حلقة المتابعة الدائمة
+    -- ٢. نطفئ التصادم أولاً — حتى لا تقاومنا الأرض!
+    if char then
+        setCharCollision(char, false)
+    end
+
+    -- ٣. النزول المباشر (المجرب!)
+    root.Anchored = true
+    root.CFrame = CFrame.new(root.Position.X, undergroundY, root.Position.Z)
+    task.wait(0.15)
+    root.Anchored = false
+
+    -- ٤. الحلقة الدائمة: Y-Lock + أرضية + تصادم مطفأ!
     earthConn = RunService.Stepped:Connect(function()
         pcall(function()
             local c = player.Character
@@ -127,7 +128,7 @@ local function startDownEarth()
                 end
             end
             
-            -- الأرضية الشبحية تلاحق قدميك!
+            -- الأرضية الشبحية تلاحق قدميك (مشي طبيعي!)
             if undergroundFloor and undergroundFloor.Parent then
                 undergroundFloor.CFrame = CFrame.new(
                     r.Position.X, 
@@ -136,9 +137,11 @@ local function startDownEarth()
                 )
             end
 
-            -- شبكة أمان: لو سقطت تحت الأرضية → نرجعك فوقها!
-            if r.Position.Y < undergroundY - 4 then
-                r.CFrame = CFrame.new(r.Position.X, undergroundY, r.Position.Z)
+            -- ⭐⭐ Y-Lock — سر v1.4 الناجح!
+            -- السيرفر يرفعك؟ نرجعك تحت في نفس الإطار — بصمت!
+            local pos = r.Position
+            if math.abs(pos.Y - undergroundY) > 3 then
+                r.CFrame = CFrame.new(pos.X, undergroundY, pos.Z)
             end
 
             -- 🛡️ شبكة أمان الحياة
@@ -175,7 +178,7 @@ local function stopDownEarth()
         task.wait(0.15)
         root.Anchored = false
         
-        -- ♻️ إعادة تشغيل التصادم — رجعت لاعب عادي فوق الأرض!
+        -- ♻️ إعادة تشغيل التصادم — رجعت لاعب عادي!
         local char = player.Character
         if char then
             setCharCollision(char, true)
@@ -367,7 +370,7 @@ earthBtn.MouseButton1Click:Connect(function()
     if earthOn then
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
         startDownEarth()
-        notify("🕳️ Under!", "امشي طبيعي 100% — التصادم مطفأ! 🏃", 3)
+        notify("🕳️ Under!", "امشي طبيعي — Y-Lock يحرسك! 🏃🛡️", 3)
     else
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         stopDownEarth()
@@ -447,6 +450,6 @@ end)
 --------------------------------------------------------------------
 Frame.Visible = true
 
-notify("⚡Brlin Funny Gamer⚡", "v2.3 Loaded ✅", 4)
+notify("⚡Brlin Funny Gamer⚡", "v2.4 Final Combo ✅", 4)
 
-print("🧠 Brlin v2.3 Loaded! ✅")
+print("🧠 Brlin v2.4 Loaded! ✅")
