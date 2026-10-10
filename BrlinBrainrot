@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v1.7 — Down Earth + Smart Respawn 🕳️⚡
+--   v1.8 — Down Earth (نظيف وبسيط!) 🕳️
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -64,7 +64,7 @@ local C_RED   = Color3.fromRGB(200, 30, 30)
 local C_WHITE = Color3.fromRGB(255, 255, 255)
 
 --------------------------------------------------------------------
--- 🕳️ Down Earth — قفل Y + سرعة متوازنة + Smart Respawn!
+-- 🕳️ Down Earth — قفل Y + سرعة متوازنة
 --------------------------------------------------------------------
 local earthOn = false
 local earthConn = nil
@@ -137,67 +137,11 @@ local function stopDownEarth()
         root.CFrame = CFrame.new(root.Position.X, upY, root.Position.Z)
         task.wait(0.1)
         root.Anchored = false
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
     end)
 
-    -- ⭐ Respawn الذكي: نعيد بناء الشخصية + نرجعك لمكانك!
-    task.spawn(function()
-        -- ١. نحفظ مكانك الحالي (فوق الأرض بالضبط!)
-        local homePos = nil
-        pcall(function()
-            homePos = getRoot().Position
-        end)
-
-        -- ٢. نؤشر انتظار الشخصية الجديدة
-        local waited = false
-        local conn
-        conn = player.CharacterAdded:Connect(function(char)
-            waited = true
-            conn:Disconnect()
-        end)
-
-        -- ٣. Respawn برمجي (نفس زر اللعبة!)
-        pcall(function()
-            player:LoadCharacter()
-        end)
-
-        -- ٤. ننتظر الشخصية الجديدة
-        local tries = 0
-        while not waited and tries < 100 do
-            task.wait(0.1)
-            tries = tries + 1
-        end
-
-        -- ٥. نرجعك لمكانك فور اكتمال البناء
-        task.wait(0.5)
-        pcall(function()
-            local char = player.Character
-            if char and homePos then
-                local root = char:WaitForChild("HumanoidRootPart", 5)
-                if root then
-                    root.Anchored = true
-                    root.CFrame = CFrame.new(homePos + Vector3.new(0, 4, 0))
-                    task.wait(0.1)
-                    root.Anchored = false
-                    local hum = char:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        hum.WalkSpeed = 16
-                        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-                    end
-                end
-            end
-        end)
-
-        -- ٦. تأكيد نهائي للسرعة
-        task.wait(0.5)
-        pcall(function()
-            local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-            if hum and hum.WalkSpeed < 16 then
-                hum.WalkSpeed = 16
-            end
-        end)
-
-        notify("⬆️ Respawned + Returned!", "سرعتك سليمة 100% ونفس مكانك ✅", 4)
-    end)
+    notify("⬆️ Back Up!", "لو السرعة بطيئة — اسوِ Respawn يدوياً 😄", 4)
 end
 
 --------------------------------------------------------------------
@@ -383,7 +327,7 @@ earthBtn.MouseButton1Click:Connect(function()
     else
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         stopDownEarth()
-        notify("⬆️ Returning...", "جاري Respawn + العودة لمكانك...", 3)
+        notify("⬆️ Back Up!", "نفس المكان فوق الأرض ✅", 3)
     end
 end)
 
@@ -460,6 +404,6 @@ end)
 --------------------------------------------------------------------
 Frame.Visible = true
 
-notify("⚡Brlin Funny Gamer⚡", "v1.7 Smart Respawn ✅", 4)
+notify("⚡Brlin Funny Gamer⚡", "v1.8 Loaded ✅", 4)
 
-print("🧠 Brlin v1.7 Loaded! ✅")
+print("🧠 Brlin v1.8 Loaded! ✅")
