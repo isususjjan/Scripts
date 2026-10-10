@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v1.9 — Down Earth (السرعة الشرعية!) 🕳️
+--   v2.0 — Down Earth SMART (يكتشف العمق الآمن!)
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -59,33 +59,63 @@ local C_RED   = Color3.fromRGB(200, 30, 30)
 local C_WHITE = Color3.fromRGB(255, 255, 255)
 
 --------------------------------------------------------------------
--- 🕳️ Down Earth — السرعة الشرعية (سرعة اللعبة الأصلية!)
+-- 🕳️ Down Earth SMART — يكتشف العمق الآمن تلقائياً!
 --------------------------------------------------------------------
 local earthOn = false
 local earthConn = nil
 local savedEarthY = nil
 local undergroundY = nil
-local UNDERGROUND_OFFSET = -20
+local safeY = nil
+
+-- ننزل على مراحل: كل خطوة 5 أمتار + فحص حياة!
+local function findSafeDepth(startY)
+    local ok, result = pcall(function()
+        local root = getRoot()
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if not hum then return nil end
+
+        local startYHealth = hum.Health
+        local testY = startY
+        local lastSafe = startY - 2  -- أول عمق آمن (2 متر فقط)
+
+        for step = 1, 8 do
+            testY = testY - 5  -- ننزل 5 أمتار إضافية
+            root.Anchored = true
+            root.CFrame = CFrame.new(root.Position.X, testY, root.Position.Z)
+            task.wait(0.35)  -- ننتظر: هل اللعبة تقتلنا هنا؟
+
+            -- فحص: هل نحن أحياء وصحتنا سليمة؟
+            if hum.Health <= 0 or hum.Health < startYHealth - 1 then
+                -- متنا أو تأذينا في هذا العمق! نرجع لآخر نقطة آمنة
+                root.CFrame = CFrame.new(root.Position.X, lastSafe, root.Position.Z)
+                return lastSafe
+            end
+
+            -- سليم؟ هذه نقطة آمنة جديدة!
+            lastSafe = testY
+            root.Anchored = false
+            task.wait(0.05)
+            root.Anchored = true
+        end
+
+        root.CFrame = CFrame.new(root.Position.X, lastSafe, root.Position.Z)
+        return lastSafe
+    end)
+    if ok then return result end
+    return startY - 2
+end
 
 local function startDownEarth()
     local root = getRoot()
     
-    -- نحفظ سرعتك الحقيقية الحالية (سرعة اللعبة الطبيعية بدون هك!)
-    local realSpeed = 16
-    pcall(function()
-        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum and hum.WalkSpeed > 0 and hum.WalkSpeed < 50 then
-            realSpeed = hum.WalkSpeed
-        end
-    end)
-    
     savedEarthY = root.Position.Y
-    undergroundY = root.Position.Y + UNDERGROUND_OFFSET
-    
-    root.Anchored = true
-    root.CFrame = CFrame.new(root.Position.X, undergroundY, root.Position.Z)
-    task.wait(0.1)
-    root.Anchored = false
+
+    -- ⭐ نكتشف العمق الآمن تلقائياً!
+    notify("🕳️ Down Earth", "جاري اكتشاف العمق الآمن...", 2)
+    safeY = findSafeDepth(savedEarthY)
+    undergroundY = safeY
+
+    notify("🕳️ Safe Depth Found!", "العمق الآمن: " .. math.floor(savedEarthY - safeY) .. " متر ✅", 3)
 
     earthConn = RunService.Stepped:Connect(function()
         pcall(function()
@@ -94,29 +124,36 @@ local function startDownEarth()
             local r = char:FindFirstChild("HumanoidRootPart")
             if not r then return end
 
-            -- ١. قفل Y فقط (هذا يعمل!)
+            -- ١. قفل Y عند العمق الآمن!
             local pos = r.Position
             if math.abs(pos.Y - undergroundY) > 3 then
                 r.CFrame = CFrame.new(pos.X, undergroundY, pos.Z)
             end
 
-            -- ٢. إلغاء التصادم (يعمل!)
+            -- ٢. إلغاء التصادم
             for _, part in pairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then
                     part.CanCollide = false
                 end
             end
 
-            -- ٣. السرعة = قيمة اللعبة الأصلية فقط!
-            -- (لا سرعة هك! إن جمّدت اللعبة سرعتك لصفر — نعيدها لقيمتها الشرعية!)
+            -- ٣. السرعة الشرعية فقط (إن جمّدت!)
             pcall(function()
                 local hum = char:FindFirstChildOfClass("Humanoid")
                 if hum and hum.WalkSpeed == 0 then
-                    hum.WalkSpeed = realSpeed
+                    hum.WalkSpeed = 16
                 end
             end)
 
-            -- ٤. لا AssemblyLinearVelocity إطلاقاً! (هذا ما فتح عين الحماية سابقاً!)
+            -- ٤. 🛡️ حارس الحياة: لو صحتك بدأت تنقص → نرفعك فوراً!
+            pcall(function()
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health < (hum.MaxHealth - 1) then
+                    -- نحن نُهاجَم أو نحن في منطقة موت!
+                    -- نرفعك فوق الأرض فوراً لحمايتك
+                    stopDownEarth()
+                end
+            end)
         end)
     end)
 end
@@ -129,7 +166,7 @@ local function stopDownEarth()
     
     pcall(function()
         local root = getRoot()
-        local upY = savedEarthY or (root.Position.Y - UNDERGROUND_OFFSET)
+        local upY = savedEarthY or (root.Position.Y + 20)
         root.Anchored = true
         root.CFrame = CFrame.new(root.Position.X, upY, root.Position.Z)
         task.wait(0.1)
@@ -294,7 +331,7 @@ makeButton("Remove Set 🗑️", 225, function()
     notify("Removed Set Successful✅", "", 3)
 end)
 
--- ٤. Down Earth 🕳️ — الزر التفعلي
+-- ٤. Down Earth 🕳️ — الزر التفعلي الذكي!
 local earthBtn = Instance.new("TextButton")
 earthBtn.Size = UDim2.new(1, -24, 0, 45)
 earthBtn.Position = UDim2.new(0, 12, 0, 278)
@@ -320,11 +357,9 @@ earthBtn.MouseButton1Click:Connect(function()
     if earthOn then
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
         startDownEarth()
-        notify("🕳️ Underground ON!", "سرعة شرعية — لا حظر! ✅", 3)
     else
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         stopDownEarth()
-        notify("⬆️ Back Up!", "نفس المكان فوق الأرض ✅", 3)
     end
 end)
 
@@ -401,6 +436,6 @@ end)
 --------------------------------------------------------------------
 Frame.Visible = true
 
-notify("⚡Brlin Funny Gamer⚡", "v1.9 Legal Speed ✅", 4)
+notify("⚡Brlin Funny Gamer⚡", "v2.0 Smart Depth ✅", 4)
 
-print("🧠 Brlin v1.9 Loaded! ✅")
+print("🧠 Brlin v2.0 Loaded! ✅")
