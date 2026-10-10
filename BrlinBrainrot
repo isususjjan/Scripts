@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v1.2 — Steal a Brainrot
+--   v1.3 + Down Earth 🕳️ — Steal a Brainrot
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -50,6 +50,35 @@ local C_RED   = Color3.fromRGB(200, 30, 30)
 local C_WHITE = Color3.fromRGB(255, 255, 255)
 
 --------------------------------------------------------------------
+-- 🕳️ Down Earth — النزول تحت الأرض
+--------------------------------------------------------------------
+local earthOn = false
+local savedEarthY = nil
+local UNDERGROUND_OFFSET = -25  -- العمق تحت الأرض
+
+local function downEarth(on)
+    pcall(function()
+        local root = getRoot()
+        if on then
+            -- نحفظ الارتفاع الحالي وننزل بعمق آمن
+            savedEarthY = root.Position.Y
+            root.Anchored = true
+            root.CFrame = CFrame.new(root.Position.X, root.Position.Y + UNDERGROUND_OFFSET, root.Position.Z)
+            task.wait(0.1)
+            root.Anchored = false
+        else
+            -- نرفعك: نفس X/Z بالضبط — فقط Y يعود للفوق!
+            root.Anchored = true
+            root.CFrame = CFrame.new(root.Position.X, savedEarthY or (root.Position.Y - UNDERGROUND_OFFSET), root.Position.Z)
+            task.wait(0.1)
+            root.Anchored = false
+            local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+        end
+    end)
+end
+
+--------------------------------------------------------------------
 -- تدمير الواجهات القديمة
 --------------------------------------------------------------------
 if game.CoreGui:FindFirstChild("BrlinMenu") then
@@ -60,16 +89,17 @@ if game.CoreGui:FindFirstChild("BrlinCircle") then
 end
 
 --------------------------------------------------------------------
--- الواجهة الرئيسية
+-- بناء الواجهة
 --------------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BrlinMenu"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
+-- الإطار الرئيسي + الإطار الأحمر المحيط
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 260, 0, 390)
-Frame.Position = UDim2.new(0.5, -130, 0.5, -195)
+Frame.Size = UDim2.new(0, 260, 0, 450)
+Frame.Position = UDim2.new(0.5, -130, 0.5, -225)
 Frame.BackgroundColor3 = C_BG
 Frame.BorderSizePixel = 0
 Frame.Active = true
@@ -86,7 +116,7 @@ local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(0, 8)
 Corner.Parent = Frame
 
--- اسم المطور
+-- اسم المطور (أبيض)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
@@ -138,7 +168,7 @@ Line2.BackgroundColor3 = C_WHITE
 Line2.BorderSizePixel = 0
 Line2.Parent = Frame
 
--- ═══ دالة الأزرار — كل زر = مربع أسود + إطار أحمر يحيط به (مثل Saved بالضبط!) ═══
+-- دالة الأزرار (كل زر: مربع أسود + إطار أحمر يحيط به!)
 local function makeButton(text, yPos, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -24, 0, 45)
@@ -150,7 +180,6 @@ local function makeButton(text, yPos, callback)
     btn.Font = Enum.Font.GothamBold
     btn.Parent = Frame
 
-    -- ⭐ إطار أحمر يحيط بالزر نفسه (مثل Category السفلي!)
     local stroke = Instance.new("UIStroke")
     stroke.Color = C_RED
     stroke.Thickness = 1.5
@@ -172,17 +201,17 @@ local function makeButton(text, yPos, callback)
 end
 
 --------------------------------------------------------------------
--- الأزرار الأربعة — مباشرة في Frame (بلا Category مجمّعة!)
+-- الأزرار
 --------------------------------------------------------------------
 
--- ١. Set 💥
+-- ١. Set 💥 — بلا توست، الشريط يتغير فقط
 makeButton("Set 💥", 119, function()
     local root = getRoot()
     saveCFrame(root.CFrame)
     StatusText.Text = "✅ Saved"
 end)
 
--- ٢. Tp 🎩
+-- ٢. Tp 🎩 — توست: Teleport Successful ⚡
 makeButton("Tp 🎩", 172, function()
     if SavedCFrame == nil then
         StatusText.Text = "❌ No Save"
@@ -207,7 +236,7 @@ makeButton("Tp 🎩", 172, function()
     end)
 end)
 
--- ٣. Remove Set 🗑️
+-- ٣. Remove Set 🗑️ — توست: Removed Set Successful✅
 makeButton("Remove Set 🗑️", 225, function()
     clearCFrame()
     StatusText.Text = "❌ No Save"
@@ -220,8 +249,40 @@ makeButton("Remove Set 🗑️", 225, function()
     end)
 end)
 
+-- ٤. Down Earth 🕳️ — زر تفعلي (أخضر عند ON)
+local earthBtn = Instance.new("TextButton")
+earthBtn.Size = UDim2.new(1, -24, 0, 45)
+earthBtn.Position = UDim2.new(0, 12, 0, 278)
+earthBtn.Text = "Down Earth 🕳️"
+earthBtn.TextColor3 = C_WHITE
+earthBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+earthBtn.TextSize = 15
+earthBtn.Font = Enum.Font.GothamBold
+earthBtn.Parent = Frame
+
+local earthStroke = Instance.new("UIStroke")
+earthStroke.Color = C_RED
+earthStroke.Thickness = 1.5
+earthStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+earthStroke.Parent = earthBtn
+
+local earthCorner = Instance.new("UICorner")
+earthCorner.CornerRadius = UDim.new(0, 6)
+earthCorner.Parent = earthBtn
+
+earthBtn.MouseButton1Click:Connect(function()
+    earthOn = not earthOn
+    if earthOn then
+        earthBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
+        downEarth(true)
+    else
+        earthBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        downEarth(false)
+    end
+end)
+
 --------------------------------------------------------------------
--- 🖤 الدائرة B — تُبنى هنا مباشرة (قبل استخدامها في Close!)
+-- 🖤 الدائرة B — قابلة للسحب بالإصبع
 --------------------------------------------------------------------
 local CircleGui = Instance.new("ScreenGui")
 CircleGui.Name = "BrlinCircle"
@@ -254,7 +315,7 @@ CircleBtn.MouseButton1Click:Connect(function()
     CircleBtn.Visible = false
 end)
 
--- ⭐ السحب بالإصبع (لأي مكان!)
+-- السحب بالإصبع (Touch + Mouse)
 local UserInputService = game:GetService("UserInputService")
 local dragging = false
 local dragStart = nil
@@ -285,10 +346,8 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
---------------------------------------------------------------------
--- ٤. Close Menu ❌ — الربط النظيف الوحيد!
---------------------------------------------------------------------
-makeButton("Close Menu ❌", 278, function()
+-- ٥. Close Menu ❌ — إخفاء + إظهار الدائرة
+makeButton("Close Menu ❌", 331, function()
     Frame.Visible = false
     CircleBtn.Visible = true
 end)
@@ -300,8 +359,8 @@ Frame.Visible = true
 
 game.StarterGui:SetCore("SendNotification", {
     Title = "⚡Brlin Funny Gamer⚡",
-    Text = "Menu Loaded ✅",
+    Text = "Menu v1.3 Loaded ✅",
     Duration = 4
 })
 
-print("🧠 Brlin Teleport Menu v1.2 Loaded! ✅")
+print("🧠 Brlin Menu v1.3 Loaded! ✅")
