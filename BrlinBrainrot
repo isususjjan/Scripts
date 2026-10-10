@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v2.7 — Fixed & Complete 🕳️
+--   v2.8 — Down Earth + Double Shield 🛡️🛡️
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -19,15 +19,6 @@ local function notify(title, text, dur)
         })
     end)
 end
-
---------------------------------------------------------------------
--- ⚙️ الإعدادات
---------------------------------------------------------------------
--- ⚠️ اللعبة الأصلية: اتركه -8 (أعمق = طرد خلال ثانية!)
--- اللعبة المقلدة: يمكنك -13 بحرية
-local UNDERGROUND_OFFSET = -8
-local SAFE_TIME = 15        -- نخرج عند 15 ثانية (قبل موت الـ 17!)
-local SURFACE_BREAK = 2     -- استراحة السطح
 
 --------------------------------------------------------------------
 -- نظام الحفظ الدائم
@@ -73,10 +64,12 @@ local C_WHITE = Color3.fromRGB(255, 255, 255)
 --------------------------------------------------------------------
 local earthOn = false
 local earthConn = nil
-local cycleThread = nil
+local shieldConn = nil
+local shieldBeat = nil
 local undergroundFloor = nil
 local savedEarthY = nil
 local undergroundY = nil
+local UNDERGROUND_OFFSET = -8
 
 local function setCharCollision(char, on)
     pcall(function()
@@ -88,7 +81,52 @@ local function setCharCollision(char, on)
     end)
 end
 
+--------------------------------------------------------------------
+-- 🛡️🛡️ الدرع المزدوج — مانع الموت!
+--------------------------------------------------------------------
+local function startShield(hum)
+    -- الدرع الأول: حاجز فوري (HealthChanged)
+    pcall(function()
+        shieldConn = hum.HealthChanged:Connect(function(health)
+            if earthOn and health < hum.MaxHealth then
+                hum.Health = hum.MaxHealth
+            end
+            if earthOn and health <= 0 then
+                hum.Health = hum.MaxHealth
+                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end
+        end)
+    end)
+
+    -- الدرع الثاني: نبض مستمر (Heartbeat كل إطار!)
+    pcall(function()
+        shieldBeat = RunService.Heartbeat:Connect(function()
+            if earthOn and hum.Parent then
+                if hum.Health < hum.MaxHealth then
+                    hum.Health = hum.MaxHealth
+                end
+                if hum.Health <= 0 then
+                    hum.Health = hum.MaxHealth
+                end
+            end
+        end)
+    end)
+end
+
+local function stopShield()
+    if shieldConn then
+        shieldConn:Disconnect()
+        shieldConn = nil
+    end
+    if shieldBeat then
+        shieldBeat:Disconnect()
+        shieldBeat = nil
+    end
+end
+
+--------------------------------------------------------------------
 -- 🛗 صعود للسطح
+--------------------------------------------------------------------
 local function riseToSurface()
     if earthConn then
         earthConn:Disconnect()
@@ -98,6 +136,7 @@ local function riseToSurface()
         undergroundFloor:Destroy()
         undergroundFloor = nil
     end
+    stopShield()
     pcall(function()
         local root = getRoot()
         local upY = savedEarthY or (root.Position.Y - UNDERGROUND_OFFSET)
@@ -111,8 +150,16 @@ local function riseToSurface()
     end)
 end
 
--- 🕳️ الغوص
-local function diveUnderground()
+--------------------------------------------------------------------
+-- 🕳️ الغوص — النسخة الكاملة المصححة!
+--------------------------------------------------------------------
+local function startDownEarth()
+    pcall(function()
+        savedEarthY = getRoot().Position.Y
+    end)
+
+    -- ١. الغوص (نزول مباشر + أرضية شبحية + Y-Lock + تصادم مطفأ!)
+    diveUnderground = diveUnderground or nil
     pcall(function()
         local root = getRoot()
         undergroundY = (savedEarthY or root.Position.Y) + UNDERGROUND_OFFSET
@@ -163,62 +210,60 @@ local function diveUnderground()
                 end
             end)
         end)
+
+        -- ٢. 🛡️ تفعيل الدرع المزدوج!
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then startShield(hum) end
     end)
+
+    -- ٣. نعيد تفعيل كل شيء بعد Respawn اليدوي (أنت تسويه بيدك!)
+    player.CharacterAdded:Connect(function(char)
+        if not earthOn then return end
+        task.wait(1)
+        pcall(function()
+            -- نغوصك من جديد تلقائياً بعد Respawn!
+            local root = char:WaitForChild("HumanoidRootPart", 5)
+            undergroundY = (savedEarthY or root.Position.Y) + UNDERGROUND_OFFSET
+
+            if not undergroundFloor then
+                undergroundFloor = Instance.new("Part")
+                undergroundFloor.Name = "BrlinGhostFloor"
+                undergroundFloor.Size = Vector3.new(15, 1, 15)
+                undergroundFloor.Transparency = 1
+                undergroundFloor.Anchored = true
+                undergroundFloor.CanCollide = true
+                undergroundFloor.Parent = workspace
+            end
+            undergroundFloor.CFrame = CFrame.new(root.Position.X, undergroundY - 3.5, root.Position.Z)
+
+            setCharCollision(char, false)
+            root.Anchored = true
+            root.CFrame = CFrame.new(root.Position.X, undergroundY, root.Position.Z)
+            task.wait(0.15)
+            root.Anchored = false
+
+            local hum = char:WaitForChild("Humanoid", 5)
+            if hum then startShield(hum) end
+        end)
+    end)
+
+    notify("🕳️ Diving!", "الدرع المزدوج 🛡️🛡️ مفعّل — لا موت تحت!", 4)
 end
 
--- ⏹️ الإيقاف (بدون Respawn تلقائي — أنت تسويه بيدك!)
+--------------------------------------------------------------------
+-- ⏹️ الإيقاف
+--------------------------------------------------------------------
 local function stopDownEarth()
     earthOn = false
 
-    if cycleThread then
-        task.cancel(cycleThread)
-        cycleThread = nil
+    if earthConn then
+        earthConn:Disconnect()
+        earthConn = nil
     end
 
     riseToSurface()
 
-    notify("⬆️ Stopped!", "خرجت من الغوص ✅", 4)
-end
-
--- ▶️ الدورة الوقائية!
-local function startDownEarth()
-    pcall(function()
-        savedEarthY = getRoot().Position.Y
-    end)
-
-    cycleThread = task.spawn(function()
-        while earthOn do
-            -- ١. الغوص
-            diveUnderground()
-
-            -- ٢. 15 ثانية تحت
-            local elapsed = 0
-            while elapsed < SAFE_TIME and earthOn do
-                task.wait(1)
-                elapsed = elapsed + 1
-                if elapsed % 5 == 0 and earthOn then
-                    notify("⏳ " .. (SAFE_TIME - elapsed) .. "s", "قبل التحديث التلقائي...", 1)
-                end
-            end
-            if not earthOn then break end
-
-            -- ٣. خروج لحظي!
-            riseToSurface()
-
-            -- ٤. استراحة
-            notify("⬆️ Refresh!", "استراحة — عودة وشيكة...", 2)
-            local breakT = 0
-            while breakT < SURFACE_BREAK and earthOn do
-                task.wait(0.5)
-                breakT = breakT + 0.5
-            end
-            if not earthOn then break end
-        end
-
-        if not earthOn then
-            riseToSurface()
-        end
-    end)
+    notify("⬆️ Back Up!", "نفس المكان فوق الأرض ✅", 4)
 end
 
 --------------------------------------------------------------------
@@ -232,7 +277,7 @@ if game.CoreGui:FindFirstChild("BrlinCircle") then
 end
 
 --------------------------------------------------------------------
--- ⭐ الترتيب الصحيح: القائمة أولاً → ثم الدائرة → ثم الأزرار!
+-- ⭐ بناء القائمة
 --------------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BrlinMenu"
@@ -306,7 +351,7 @@ Line2.BackgroundColor3 = C_WHITE
 Line2.BorderSizePixel = 0
 Line2.Parent = Frame
 
--- ⭐ السكرول المنسق
+-- السكرول المنسق
 local Scroll = Instance.new("ScrollingFrame")
 Scroll.Size = UDim2.new(1, -24, 0, 152)
 Scroll.Position = UDim2.new(0, 12, 0, 118)
@@ -371,7 +416,7 @@ local function makeButton(text, order, callback)
 end
 
 --------------------------------------------------------------------
--- ⭐ الدائرة B — تُبنى الآن (بعد Frame وقبل الأزرار!)
+-- ⭐ الدائرة B (تُبنى قبل الأزرار!)
 --------------------------------------------------------------------
 local CircleGui = Instance.new("ScreenGui")
 CircleGui.Name = "BrlinCircle"
@@ -435,7 +480,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 --------------------------------------------------------------------
--- الأزرار الخمسة (الدائرة موجودة الآن — Close يشتغل!)
+-- الأزرار الخمسة
 --------------------------------------------------------------------
 
 makeButton("Set 💥", 1, function()
@@ -468,12 +513,11 @@ makeButton("Remove Set 🗑️", 3, function()
     notify("Removed Set Successful✅", "", 3)
 end)
 
--- ٤. Down Earth 🕳️
+-- ٤. Down Earth 🕳️ — زر ON/OFF أخضر!
 makeButton("Down Earth 🕳️", 4, function()
     earthOn = not earthOn
     if earthOn then
         startDownEarth()
-        notify("🕳️ Diving!", "دورة كل " .. SAFE_TIME .. " ثانية — لن تموت! ♾️", 4)
     else
         stopDownEarth()
     end
@@ -488,6 +532,6 @@ end)
 --------------------------------------------------------------------
 Frame.Visible = true
 
-notify("⚡Brlin Funny Gamer⚡", "v2.7 Fixed ✅", 4)
+notify("⚡Brlin Funny Gamer⚡", "v2.8 Double Shield ✅", 4)
 
-print("🧠 Brlin v2.7 Loaded! ✅")
+print("🧠 Brlin v2.8 Loaded! ✅")
