@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v1.4 + Down Earth PRO 🕳️ (Y-Lock!)
+--   v1.5 + Down Earth PRO (سرعة الصاروخ!) 🕳️⚡
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -10,6 +10,11 @@ local function getRoot()
     local char = player.Character or player.CharacterAdded:Wait()
     return char:WaitForChild("HumanoidRootPart")
 end
+
+--------------------------------------------------------------------
+-- ⚙️ الإعدادات — عدّل السرعة هنا!
+--------------------------------------------------------------------
+local UNDERGROUND_SPEED = 120  -- سرعة المشي تحت الأرض (غيّرها: 80 هادئة / 200 طيارة!)
 
 --------------------------------------------------------------------
 -- نظام الحفظ الدائم
@@ -51,13 +56,13 @@ local C_RED   = Color3.fromRGB(200, 30, 30)
 local C_WHITE = Color3.fromRGB(255, 255, 255)
 
 --------------------------------------------------------------------
--- 🕳️ Down Earth PRO — قفل المحور Y بالقوة!
+-- 🕳️ Down Earth PRO — قفل Y + سرعة الصاروخ!
 --------------------------------------------------------------------
 local earthOn = false
 local earthConn = nil
 local savedEarthY = nil
 local undergroundY = nil
-local UNDERGROUND_OFFSET = -20  -- العمق (آمن فوق منطقة الموت!)
+local UNDERGROUND_OFFSET = -20  -- العمق تحت الأرض
 
 local function startDownEarth()
     local root = getRoot()
@@ -72,7 +77,13 @@ local function startDownEarth()
     task.wait(0.1)
     root.Anchored = false
 
-    -- ⚡ القفل المستمر — 60 مرة بالثانية!
+    -- نرفع سرعة المشي للقصوى!
+    pcall(function()
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = UNDERGROUND_SPEED end
+    end)
+
+    -- ⚡ القفل المستمر + الدفع بالسرعة!
     earthConn = RunService.Stepped:Connect(function()
         pcall(function()
             local char = player.Character
@@ -86,15 +97,30 @@ local function startDownEarth()
                 r.CFrame = CFrame.new(pos.X, undergroundY, pos.Z)
             end
 
-            -- ٢. إلغاء التصادم (تمشي عبر كل شيء تحت الأرض!)
+            -- ٢. إلغاء التصادم (تعبر كل شيء!)
             for _, part in pairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then
                     part.CanCollide = false
                 end
             end
 
-            -- ٣. تصفير السرعة (لا سقوط، لا انزلاق!)
-            r.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            -- ٣. 🔥 الدفع بالسرعة — باتجاه حركتك!
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.WalkSpeed = UNDERGROUND_SPEED  -- نحافظ على السرعة باستمرار!
+                local moveDir = hum.MoveDirection
+                if moveDir.Magnitude > 0 then
+                    -- تتحرك → ندفعك بهذا الاتجاه بأقصى سرعة!
+                    r.AssemblyLinearVelocity = Vector3.new(
+                        moveDir.X * UNDERGROUND_SPEED, 
+                        0, 
+                        moveDir.Z * UNDERGROUND_SPEED
+                    )
+                else
+                    -- واقف؟ نثبت مكانك
+                    r.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                end
+            end
         end)
     end)
 end
@@ -114,8 +140,13 @@ local function stopDownEarth()
         root.CFrame = CFrame.new(root.Position.X, upY, root.Position.Z)
         task.wait(0.1)
         root.Anchored = false
+        
+        -- نرجع السرعة الطبيعية
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+        if hum then
+            hum.WalkSpeed = 16
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
     end)
 end
 
@@ -239,12 +270,14 @@ end
 -- الأزرار
 --------------------------------------------------------------------
 
+-- ١. Set 💥
 makeButton("Set 💥", 119, function()
     local root = getRoot()
     saveCFrame(root.CFrame)
     StatusText.Text = "✅ Saved"
 end)
 
+-- ٢. Tp 🎩
 makeButton("Tp 🎩", 172, function()
     if SavedCFrame == nil then
         StatusText.Text = "❌ No Save"
@@ -269,6 +302,7 @@ makeButton("Tp 🎩", 172, function()
     end)
 end)
 
+-- ٣. Remove Set 🗑️
 makeButton("Remove Set 🗑️", 225, function()
     clearCFrame()
     StatusText.Text = "❌ No Save"
@@ -281,7 +315,7 @@ makeButton("Remove Set 🗑️", 225, function()
     end)
 end)
 
--- ٤. Down Earth 🕳️ — الزر التفعلي PRO!
+-- ٤. Down Earth 🕳️
 local earthBtn = Instance.new("TextButton")
 earthBtn.Size = UDim2.new(1, -24, 0, 45)
 earthBtn.Position = UDim2.new(0, 12, 0, 278)
@@ -310,7 +344,7 @@ earthBtn.MouseButton1Click:Connect(function()
         pcall(function()
             game.StarterGui:SetCore("SendNotification", {
                 Title = "🕳️ Underground ON!",
-                Text = "Y-Lock مفعّل — السيرفر لا يقهرنا!",
+                Text = "Y-Lock + سرعة " .. UNDERGROUND_SPEED .. " مفعّلة!",
                 Duration = 3
             })
         end)
@@ -328,7 +362,7 @@ earthBtn.MouseButton1Click:Connect(function()
 end)
 
 --------------------------------------------------------------------
--- 🖤 الدائرة B
+-- 🖤 الدائرة B — قابلة للسحب
 --------------------------------------------------------------------
 local CircleGui = Instance.new("ScreenGui")
 CircleGui.Name = "BrlinCircle"
@@ -402,8 +436,8 @@ Frame.Visible = true
 
 game.StarterGui:SetCore("SendNotification", {
     Title = "⚡Brlin Funny Gamer⚡",
-    Text = "v1.4 Down Earth PRO ✅",
+    Text = "v1.5 + Underground Speed ✅",
     Duration = 4
 })
 
-print("🧠 Brlin v1.4 Down Earth PRO Loaded! ✅")
+print("🧠 Brlin v1.5 Down Earth PRO Loaded! ✅")
