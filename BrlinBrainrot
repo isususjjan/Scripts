@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v2.1 — Down Earth (أرضية شبحية = مشي طبيعي!) 🕳️
+--   v2.2 — Down Earth (نزول تدريجي + أرضية شبحية!) 🕳️
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -22,7 +22,7 @@ end
 --------------------------------------------------------------------
 -- ⚙️ الإعدادات
 --------------------------------------------------------------------
-local UNDERGROUND_OFFSET = -8   -- العمق تحت الأرض (8 أمتار = آمنة بأغلب الخرائط!)
+local UNDERGROUND_OFFSET = -8   -- العمق تحت الأرض
 
 --------------------------------------------------------------------
 -- نظام الحفظ الدائم
@@ -64,7 +64,7 @@ local C_RED   = Color3.fromRGB(200, 30, 30)
 local C_WHITE = Color3.fromRGB(255, 255, 255)
 
 --------------------------------------------------------------------
--- 🕳️ Down Earth — الأرضية الشبحية! مشي طبيعي 100%!
+-- 🕳️ Down Earth — الأرضية الشبحية + حركة تدريجية!
 --------------------------------------------------------------------
 local earthOn = false
 local earthConn = nil
@@ -78,47 +78,67 @@ local function startDownEarth()
     savedEarthY = root.Position.Y
     undergroundY = root.Position.Y + UNDERGROUND_OFFSET
     
-    -- ⭐ صنع الأرضية الشبحية! (محلية — لا يراها أحد!)
-    undergroundFloor = Instance.new("Part")
-    undergroundFloor.Name = "BrlinGhostFloor"
-    undergroundFloor.Size = Vector3.new(15, 1, 15)
-    undergroundFloor.Transparency = 1        -- شفافة تماماً!
-    undergroundFloor.Anchored = true
-    undergroundFloor.CanCollide = true
-    undergroundFloor.Parent = workspace
-    
-    -- نضعك واقفاً على الأرضية الشبحية
-    root.Anchored = true
-    root.CFrame = CFrame.new(root.Position.X, undergroundY, root.Position.Z)
-    task.wait(0.15)
-    root.Anchored = false
-
-    -- 🏃 حلقة المتابعة: الأرضية تلاحق قدميك + شبكة أمان!
-    earthConn = RunService.Stepped:Connect(function()
-        pcall(function()
-            local char = player.Character
-            if not char then return end
-            local r = char:FindFirstChild("HumanoidRootPart")
-            if not r then return end
-            
-            -- ١. الأرضية تتبعك أفقياً وتبقى تحت قدميك!
-            if undergroundFloor and undergroundFloor.Parent then
-                undergroundFloor.CFrame = CFrame.new(
-                    r.Position.X, 
-                    undergroundY - 3.5,   -- تحت قدميك بـ 3.5 متر
-                    r.Position.Z
-                )
+    -- 🪜 النزول التدريجي: خطوات صغيرة — لا قفزة عملاقة تثير الحماية!
+    task.spawn(function()
+        local currentY = root.Position.Y
+        local step = 1.5  -- متر ونصف كل خطوة
+        
+        while currentY > undergroundY do
+            currentY = currentY - step
+            if currentY < undergroundY then
+                currentY = undergroundY
             end
+            pcall(function()
+                root.CFrame = CFrame.new(root.Position.X, currentY, root.Position.Z)
+            end)
+            task.wait(0.05)
+        end
+        
+        -- ✅ وصلنا العمق! الآن نضع الأرضية الشبحية
+        if not undergroundFloor then
+            undergroundFloor = Instance.new("Part")
+            undergroundFloor.Name = "BrlinGhostFloor"
+            undergroundFloor.Size = Vector3.new(15, 1, 15)
+            undergroundFloor.Transparency = 1
+            undergroundFloor.Anchored = true
+            undergroundFloor.CanCollide = true
+            undergroundFloor.Parent = workspace
+        end
 
-            -- ٢. شبكة أمان: لو سقطت من الأرضية (خطأ نادر) → نرجعك فوقها!
-            if r.Position.Y < undergroundY - 4 then
-                r.CFrame = CFrame.new(r.Position.X, undergroundY, r.Position.Z)
-            end
+        -- حلقة المتابعة: الأرضية تلاحق قدميك!
+        earthConn = RunService.Stepped:Connect(function()
+            pcall(function()
+                local char = player.Character
+                if not char then return end
+                local r = char:FindFirstChild("HumanoidRootPart")
+                if not r then return end
+                
+                -- الأرضية تحت قدميك دائماً!
+                if undergroundFloor and undergroundFloor.Parent then
+                    undergroundFloor.CFrame = CFrame.new(
+                        r.Position.X, 
+                        undergroundY - 3.5,
+                        r.Position.Z
+                    )
+                end
+
+                -- شبكة أمان الارتفاع
+                if r.Position.Y < undergroundY - 4 then
+                    r.CFrame = CFrame.new(r.Position.X, undergroundY, r.Position.Z)
+                end
+
+                -- 🛡️ شبكة أمان الحياة
+                pcall(function()
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum and hum.Health < (hum.MaxHealth - 1) then
+                        stopDownEarth()
+                    end
+                end)
+            end)
         end)
+        
+        notify("🕳️ Under!", "امشي طبيعي 100% — الأرضية معك! 🏃", 3)
     end)
-    
-    -- 💡 لا نلمس WalkSpeed إطلاقاً! سرعتك الحقيقية تعمل!
-    -- 💡 لا نلمس AssemblyLinearVelocity! الـ Humanoid يمشي وحده!
 end
 
 local function stopDownEarth()
@@ -127,22 +147,37 @@ local function stopDownEarth()
         earthConn = nil
     end
     
-    -- 🗑️ نحذف الأرضية الشبحية
     if undergroundFloor then
         undergroundFloor:Destroy()
         undergroundFloor = nil
     end
     
-    -- ⬆️ نرفعك: نفس X/Z بالضبط — فقط Y يعود للفوق!
-    pcall(function()
-        local root = getRoot()
-        local upY = savedEarthY or (root.Position.Y - UNDERGROUND_OFFSET)
-        root.Anchored = true
-        root.CFrame = CFrame.new(root.Position.X, upY, root.Position.Z)
-        task.wait(0.1)
-        root.Anchored = false
-        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+    -- ⬆️ الصعود التدريجي أيضاً!
+    task.spawn(function()
+        pcall(function()
+            local root = getRoot()
+            local upY = savedEarthY or (root.Position.Y - UNDERGROUND_OFFSET)
+            local currentY = root.Position.Y
+            local step = 1.5
+            
+            while currentY < upY do
+                currentY = currentY + step
+                if currentY > upY then
+                    currentY = upY
+                end
+                pcall(function()
+                    root.CFrame = CFrame.new(root.Position.X, currentY, root.Position.Z)
+                end)
+                task.wait(0.05)
+            end
+            
+            root.Anchored = true
+            root.CFrame = CFrame.new(root.Position.X, upY, root.Position.Z)
+            task.wait(0.1)
+            root.Anchored = false
+            local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+        end)
     end)
 
     notify("⬆️ Back Up!", "نفس المكان فوق الأرض ✅", 4)
@@ -301,7 +336,7 @@ makeButton("Remove Set 🗑️", 225, function()
     notify("Removed Set Successful✅", "", 3)
 end)
 
--- ٤. Down Earth 🕳️ — الزر التفعلي الشبحي!
+-- ٤. Down Earth 🕳️
 local earthBtn = Instance.new("TextButton")
 earthBtn.Size = UDim2.new(1, -24, 0, 45)
 earthBtn.Position = UDim2.new(0, 12, 0, 278)
@@ -327,7 +362,6 @@ earthBtn.MouseButton1Click:Connect(function()
     if earthOn then
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
         startDownEarth()
-        notify("🕳️ Underground ON!", "أرضية شبحية — امشي طبيعي 100%! 🏃", 3)
     else
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         stopDownEarth()
@@ -407,6 +441,6 @@ end)
 --------------------------------------------------------------------
 Frame.Visible = true
 
-notify("⚡Brlin Funny Gamer⚡", "v2.1 Ghost Floor ✅", 4)
+notify("⚡Brlin Funny Gamer⚡", "v2.2 Loaded ✅", 4)
 
-print("🧠 Brlin v2.1 Loaded! ✅")
+print("🧠 Brlin v2.2 Loaded! ✅")
