@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Steal a Brainrot
---   v3.2 — Teleport + Down Earth + Infinity Jump
+--   v3.3 — Inf Jump + Speed Steal 👀
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -57,7 +57,7 @@ local function clearCFrame()
 end
 
 --------------------------------------------------------------------
--- Down Earth Variables
+-- Down Earth
 --------------------------------------------------------------------
 local earthOn = false
 local earthConn = nil
@@ -266,17 +266,15 @@ local function stopDownEarth()
 end
 
 --------------------------------------------------------------------
--- Infinity Jump Variables
+-- Infinity Jump (لا نهائي!)
 --------------------------------------------------------------------
 local jumpOn = false
 local jumpConn = nil
-local jumpCount = 0
-local MAX_JUMPS = 3
 
 local function setupJumpMonitor(hum)
     hum.StateChanged:Connect(function(old, new)
         if new == Enum.HumanoidStateType.Landed then
-            jumpCount = 0
+            -- لا عدّاد — القفز لا نهائي!
         end
     end)
 end
@@ -308,8 +306,8 @@ local function startInfinityJump()
                         local inAir = state == Enum.HumanoidStateType.Freefall
                             or state == Enum.HumanoidStateType.Jumping
 
-                        if inAir and jumpCount < MAX_JUMPS then
-                            jumpCount = jumpCount + 1
+                        -- قفزات لا نهائية! لا حد!
+                        if inAir then
                             r.AssemblyLinearVelocity = Vector3.new(
                                 r.AssemblyLinearVelocity.X,
                                 h.JumpPower,
@@ -339,7 +337,65 @@ local function stopInfinityJump()
         jumpConn:Disconnect()
         jumpConn = nil
     end
-    jumpCount = 0
+end
+
+--------------------------------------------------------------------
+-- Speed Steal — أزرار سرقة فورية بدون تحميل!
+--------------------------------------------------------------------
+local stealOn = false
+local stealLoopConn = nil
+local stealAddConn = nil
+
+local function makePromptInstant(prompt)
+    pcall(function()
+        prompt.HoldDuration = 0
+    end)
+end
+
+local function hookAllPrompts()
+    -- نصفّر كل الأزرار الموجودة
+    pcall(function()
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") then
+                makePromptInstant(obj)
+            end
+        end
+    end)
+
+    -- ونراقب الأزرار الجديدة التي تظهر!
+    stealAddConn = workspace.DescendantAdded:Connect(function(obj)
+        if stealOn and obj:IsA("ProximityPrompt") then
+            makePromptInstant(obj)
+        end
+    end)
+
+    -- حلقة دائمة: أي زر يرجّع مدته؟ نصفّره فوراً!
+    stealLoopConn = task.spawn(function()
+        while stealOn do
+            pcall(function()
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") and obj.HoldDuration ~= 0 then
+                        obj.HoldDuration = 0
+                    end
+                end
+            end)
+            task.wait(0.5)
+        end
+    end)
+end
+
+local function startSpeedSteal()
+    hookAllPrompts()
+    notify("👀 Speed Steal ON!", "كل أزرار السرقة فورية! ⚡", 3)
+end
+
+local function stopSpeedSteal()
+    if stealAddConn then
+        stealAddConn:Disconnect()
+        stealAddConn = nil
+    end
+    stealLoopConn = nil
+    notify("👀 Speed Steal OFF", "الأزرار رجعت عادية", 3)
 end
 
 --------------------------------------------------------------------
@@ -647,22 +703,55 @@ jumpBtn.MouseButton1Click:Connect(function()
         jumpBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
         jumpBtn.Text = "Infinity Jump 👟 [ON]"
         startInfinityJump()
-        notify("👟 Infinity Jump ON!", "اقفز 3 مرات متتالية!", 3)
+        notify("👟 Infinity Jump ON!", "قفزات لا نهائية! 🦘♾️", 3)
     else
         jumpBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         jumpBtn.Text = "Infinity Jump 👟 [OFF]"
         stopInfinityJump()
-        notify("👟 Infinity Jump OFF", "رجعت قفزة عادية", 3)
+        notify("👟 Infinity Jump OFF", "رجعت عادية", 3)
     end
 end)
 
-makeButton("Close Menu ❌", 6, function()
+local stealBtn = Instance.new("TextButton")
+stealBtn.Size = UDim2.new(1, 0, 0, 42)
+stealBtn.Text = "Speed Steal 👀 [OFF]"
+stealBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+stealBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+stealBtn.TextSize = 15
+stealBtn.Font = Enum.Font.GothamBold
+stealBtn.LayoutOrder = 6
+stealBtn.Parent = Scroll
+
+local stealStroke = Instance.new("UIStroke")
+stealStroke.Color = Color3.fromRGB(200, 30, 30)
+stealStroke.Thickness = 1.5
+stealStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+stealStroke.Parent = stealBtn
+
+local stealCorner = Instance.new("UICorner")
+stealCorner.CornerRadius = UDim.new(0, 6)
+stealCorner.Parent = stealBtn
+
+stealBtn.MouseButton1Click:Connect(function()
+    stealOn = not stealOn
+    if stealOn then
+        stealBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
+        stealBtn.Text = "Speed Steal 👀 [ON]"
+        startSpeedSteal()
+    else
+        stealBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        stealBtn.Text = "Speed Steal 👀 [OFF]"
+        stopSpeedSteal()
+    end
+end)
+
+makeButton("Close Menu ❌", 7, function()
     Frame.Visible = false
     CircleBtn.Visible = true
 end)
 
 Frame.Visible = true
 
-notify("⚡Brlin Funny Gamer⚡", "v3.2 Loaded ✅", 4)
+notify("⚡Brlin Funny Gamer⚡", "v3.3 Loaded ✅", 4)
 
-print("🧠 Brlin v3.2 Loaded! ✅")
+print("🧠 Brlin v3.3 Loaded! ✅")
