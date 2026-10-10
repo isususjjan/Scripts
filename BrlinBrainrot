@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v1.6 — سرعة التوازن + استعادة السرعة الحقيقية! ⚡
+--   v1.7 — Down Earth + Smart Respawn 🕳️⚡
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -11,10 +11,18 @@ local function getRoot()
     return char:WaitForChild("HumanoidRootPart")
 end
 
+local function notify(title, text, dur)
+    pcall(function()
+        game.StarterGui:SetCore("SendNotification", {
+            Title = title, Text = text, Duration = dur or 3
+        })
+    end)
+end
+
 --------------------------------------------------------------------
 -- ⚙️ الإعدادات
 --------------------------------------------------------------------
-local UNDERGROUND_SPEED = 60   -- ⬅️ خُفّضت! (كانت 120) — عدّلها: 40 هادئة / 80 سريعة!
+local UNDERGROUND_SPEED = 60   -- سرعة الغوص (40 هادئة / 60 ممتازة / 80 سريعة!)
 
 --------------------------------------------------------------------
 -- نظام الحفظ الدائم
@@ -56,7 +64,7 @@ local C_RED   = Color3.fromRGB(200, 30, 30)
 local C_WHITE = Color3.fromRGB(255, 255, 255)
 
 --------------------------------------------------------------------
--- 🕳️ Down Earth — v3 (قفل Y + سرعة متوازنة + استعادة سليمة!)
+-- 🕳️ Down Earth — قفل Y + سرعة متوازنة + Smart Respawn!
 --------------------------------------------------------------------
 local earthOn = false
 local earthConn = nil
@@ -131,56 +139,64 @@ local function stopDownEarth()
         root.Anchored = false
     end)
 
-    -- ⭐ الإصلاح الرئيسي: استعادة السرعة الحقيقية!
-    -- نقرأ سرعتك الحقيقية من WalkSpeed النظامية (قبل الهك)
-    -- ونكسر أي قفل بطء فرضه السيرفر!
+    -- ⭐ Respawn الذكي: نعيد بناء الشخصية + نرجعك لمكانك!
     task.spawn(function()
-        -- محاولة ١: نقرأ السرعة الحقيقية من Humanoid (اللعبة تحفظها!)
-        local trueSpeed = nil
+        -- ١. نحفظ مكانك الحالي (فوق الأرض بالضبط!)
+        local homePos = nil
         pcall(function()
-            local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-            if hum then
-                -- بعض الألعاب تخزن السرعة الأصلية في Attribute!
-                local stored = hum:FindFirstChild("StoredSpeed") 
-                    or hum:FindFirstChild("OriginalSpeed")
-                    or hum:GetAttribute("BaseSpeed")
-                    or hum:GetAttribute("WalkSpeed")
-                if stored and typeof(stored) == "number" and stored > 5 and stored < 100 then
-                    trueSpeed = stored
-                end
-            end
+            homePos = getRoot().Position
         end)
 
-        -- إذا لم نجد، نستخدم سرعة Roblox القياسية
-        if not trueSpeed then trueSpeed = 16 end
+        -- ٢. نؤشر انتظار الشخصية الجديدة
+        local waited = false
+        local conn
+        conn = player.CharacterAdded:Connect(function(char)
+            waited = true
+            conn:Disconnect()
+        end)
 
-        -- موجات كسر القفل: 3 محاولات متتالية على مدى ثانية!
-        for i = 1, 3 do
-            pcall(function()
-                local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    hum.WalkSpeed = trueSpeed
-                    -- كسر أي قفل Through-Replication
-                    hum.JumpPower = 50
-                    hum.HipHeight = 2
-                end
-            end)
-            task.wait(0.3)
+        -- ٣. Respawn برمجي (نفس زر اللعبة!)
+        pcall(function()
+            player:LoadCharacter()
+        end)
+
+        -- ٤. ننتظر الشخصية الجديدة
+        local tries = 0
+        while not waited and tries < 100 do
+            task.wait(0.1)
+            tries = tries + 1
         end
 
-        -- محاولة إضافية بعد 2 ثانية (في حال السيرفر أعاد القفل!)
-        task.wait(2)
+        -- ٥. نرجعك لمكانك فور اكتمال البناء
+        task.wait(0.5)
         pcall(function()
-            local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-            if hum and hum.WalkSpeed < trueSpeed then
-                hum.WalkSpeed = trueSpeed
+            local char = player.Character
+            if char and homePos then
+                local root = char:WaitForChild("HumanoidRootPart", 5)
+                if root then
+                    root.Anchored = true
+                    root.CFrame = CFrame.new(homePos + Vector3.new(0, 4, 0))
+                    task.wait(0.1)
+                    root.Anchored = false
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        hum.WalkSpeed = 16
+                        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                    end
+                end
             end
         end)
-    end)
-    
-    pcall(function()
-        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+
+        -- ٦. تأكيد نهائي للسرعة
+        task.wait(0.5)
+        pcall(function()
+            local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+            if hum and hum.WalkSpeed < 16 then
+                hum.WalkSpeed = 16
+            end
+        end)
+
+        notify("⬆️ Respawned + Returned!", "سرعتك سليمة 100% ونفس مكانك ✅", 4)
     end)
 end
 
@@ -304,12 +320,14 @@ end
 -- الأزرار
 --------------------------------------------------------------------
 
+-- ١. Set 💥 — بلا توست
 makeButton("Set 💥", 119, function()
     local root = getRoot()
     saveCFrame(root.CFrame)
     StatusText.Text = "✅ Saved"
 end)
 
+-- ٢. Tp 🎩
 makeButton("Tp 🎩", 172, function()
     if SavedCFrame == nil then
         StatusText.Text = "❌ No Save"
@@ -325,28 +343,17 @@ makeButton("Tp 🎩", 172, function()
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
         if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
     end)
-    pcall(function()
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Teleport Successful ⚡",
-            Text = "",
-            Duration = 3
-        })
-    end)
+    notify("Teleport Successful ⚡", "", 3)
 end)
 
+-- ٣. Remove Set 🗑️
 makeButton("Remove Set 🗑️", 225, function()
     clearCFrame()
     StatusText.Text = "❌ No Save"
-    pcall(function()
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Removed Set Successful✅",
-            Text = "",
-            Duration = 3
-        })
-    end)
+    notify("Removed Set Successful✅", "", 3)
 end)
 
--- ٤. Down Earth 🕳️
+-- ٤. Down Earth 🕳️ — الزر التفعلي
 local earthBtn = Instance.new("TextButton")
 earthBtn.Size = UDim2.new(1, -24, 0, 45)
 earthBtn.Position = UDim2.new(0, 12, 0, 278)
@@ -372,28 +379,16 @@ earthBtn.MouseButton1Click:Connect(function()
     if earthOn then
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
         startDownEarth()
-        pcall(function()
-            game.StarterGui:SetCore("SendNotification", {
-                Title = "🕳️ Underground ON!",
-                Text = "سرعة " .. UNDERGROUND_SPEED .. " + Y-Lock ✅",
-                Duration = 3
-            })
-        end)
+        notify("🕳️ Underground ON!", "سرعة " .. UNDERGROUND_SPEED .. " + Y-Lock ✅", 3)
     else
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         stopDownEarth()
-        pcall(function()
-            game.StarterGui:SetCore("SendNotification", {
-                Title = "⬆️ Back Up!",
-                Text = "نفس المكان + سرعتك الحقيقية ✅",
-                Duration = 3
-            })
-        end)
+        notify("⬆️ Returning...", "جاري Respawn + العودة لمكانك...", 3)
     end
 end)
 
 --------------------------------------------------------------------
--- 🖤 الدائرة B
+-- 🖤 الدائرة B — قابلة للسحب
 --------------------------------------------------------------------
 local CircleGui = Instance.new("ScreenGui")
 CircleGui.Name = "BrlinCircle"
@@ -465,10 +460,6 @@ end)
 --------------------------------------------------------------------
 Frame.Visible = true
 
-game.StarterGui:SetCore("SendNotification", {
-    Title = "⚡Brlin Funny Gamer⚡",
-    Text = "v1.6 Balanced Speed ✅",
-    Duration = 4
-})
+notify("⚡Brlin Funny Gamer⚡", "v1.7 Smart Respawn ✅", 4)
 
-print("🧠 Brlin v1.6 Loaded! ✅")
+print("🧠 Brlin v1.7 Loaded! ✅")
