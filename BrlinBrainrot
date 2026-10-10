@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v2.4 — Ghost Floor + Y-Lock (الدمج النهائي!) 🕳️
+--   v2.5 — قائمة منسقة + غوص عميق + الدورة الوقائية! 🕳️
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -22,7 +22,10 @@ end
 --------------------------------------------------------------------
 -- ⚙️ الإعدادات
 --------------------------------------------------------------------
-local UNDERGROUND_OFFSET = -8   -- العمق تحت الأرض
+local UNDERGROUND_OFFSET = -13    -- ⭐ التعديل الثاني: 5 أمتار أعمق! (كان -8)
+local SAFE_TIME = 15              -- ⭐ التعديل الثالث: نخرج عند 15 ثانية (قبل الموت 17!)
+local SURFACE_BREAK = 2           -- ثواني الراحة فوق قبل العودة تحت!
+local UNDERGROUND_SPEED = 60      -- سرعة الغوص
 
 --------------------------------------------------------------------
 -- نظام الحفظ الدائم
@@ -64,15 +67,15 @@ local C_RED   = Color3.fromRGB(200, 30, 30)
 local C_WHITE = Color3.fromRGB(255, 255, 255)
 
 --------------------------------------------------------------------
--- 🕳️ Down Earth — Ghost Floor + Y-Lock!
+-- 🕳️ Down Earth — الأرضية الشبحية + Y-Lock + الدورة الوقائية!
 --------------------------------------------------------------------
 local earthOn = false
 local earthConn = nil
+local cycleThread = nil
 local undergroundFloor = nil
 local savedEarthY = nil
 local undergroundY = nil
 
--- إطفاء/تشغيل تصادم الشخصية
 local function setCharCollision(char, on)
     pcall(function()
         for _, part in pairs(char:GetDescendants()) do
@@ -83,93 +86,18 @@ local function setCharCollision(char, on)
     end)
 end
 
-local function startDownEarth()
-    local root = getRoot()
-    local char = player.Character
-    
-    savedEarthY = root.Position.Y
-    undergroundY = root.Position.Y + UNDERGROUND_OFFSET
-    
-    -- ١. ⭐ الأرضية الشبحية تُنشأ أولاً — تنتظرك تحت!
-    if not undergroundFloor then
-        undergroundFloor = Instance.new("Part")
-        undergroundFloor.Name = "BrlinGhostFloor"
-        undergroundFloor.Size = Vector3.new(15, 1, 15)
-        undergroundFloor.Transparency = 1
-        undergroundFloor.Anchored = true
-        undergroundFloor.CanCollide = true
-        undergroundFloor.Parent = workspace
-    end
-    undergroundFloor.CFrame = CFrame.new(root.Position.X, undergroundY - 3.5, root.Position.Z)
-
-    -- ٢. نطفئ التصادم أولاً — حتى لا تقاومنا الأرض!
-    if char then
-        setCharCollision(char, false)
-    end
-
-    -- ٣. النزول المباشر (المجرب!)
-    root.Anchored = true
-    root.CFrame = CFrame.new(root.Position.X, undergroundY, root.Position.Z)
-    task.wait(0.15)
-    root.Anchored = false
-
-    -- ٤. الحلقة الدائمة: Y-Lock + أرضية + تصادم مطفأ!
-    earthConn = RunService.Stepped:Connect(function()
-        pcall(function()
-            local c = player.Character
-            if not c then return end
-            local r = c:FindFirstChild("HumanoidRootPart")
-            if not r then return end
-            
-            -- التصادم يبقى مطفأً (تعبر كل شيء!)
-            for _, part in pairs(c:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
-            
-            -- الأرضية الشبحية تلاحق قدميك (مشي طبيعي!)
-            if undergroundFloor and undergroundFloor.Parent then
-                undergroundFloor.CFrame = CFrame.new(
-                    r.Position.X, 
-                    undergroundY - 3.5,
-                    r.Position.Z
-                )
-            end
-
-            -- ⭐⭐ Y-Lock — سر v1.4 الناجح!
-            -- السيرفر يرفعك؟ نرجعك تحت في نفس الإطار — بصمت!
-            local pos = r.Position
-            if math.abs(pos.Y - undergroundY) > 3 then
-                r.CFrame = CFrame.new(pos.X, undergroundY, pos.Z)
-            end
-
-            -- 🛡️ شبكة أمان الحياة
-            pcall(function()
-                local hum = c:FindFirstChildOfClass("Humanoid")
-                if hum and hum.Health < (hum.MaxHealth - 1) then
-                    stopDownEarth()
-                end
-            end)
-        end)
-    end)
-    
-    -- 💡 لا نلمس WalkSpeed إطلاقاً — سرعتك الحقيقية تعمل على الأرضية الشبحية!
-end
-
-local function stopDownEarth()
+-- 🛗 صعود هادئ إلى السطح (2 ثانية استراحة!)
+local function riseToSurface()
     if earthConn then
         earthConn:Disconnect()
         earthConn = nil
     end
     
-    -- 🗑️ حذف الأرضية الشبحية
     if undergroundFloor then
         undergroundFloor:Destroy()
         undergroundFloor = nil
     end
     
-    -- ⬆️ الرفع المباشر: نفس X/Z بالضبط — فقط Y يعود للفوق!
     pcall(function()
         local root = getRoot()
         local upY = savedEarthY or (root.Position.Y - UNDERGROUND_OFFSET)
@@ -177,18 +105,143 @@ local function stopDownEarth()
         root.CFrame = CFrame.new(root.Position.X, upY, root.Position.Z)
         task.wait(0.15)
         root.Anchored = false
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+    end)
+end
+
+-- 🕳️ عودة تحت الأرض (نزول سليم!)
+local function diveUnderground()
+    pcall(function()
+        local root = getRoot()
+        undergroundY = (savedEarthY or root.Position.Y) + UNDERGROUND_OFFSET
         
-        -- ♻️ إعادة تشغيل التصادم — رجعت لاعب عادي!
-        local char = player.Character
-        if char then
-            setCharCollision(char, true)
+        -- الأرضية الشبحية جاهزة
+        if not undergroundFloor then
+            undergroundFloor = Instance.new("Part")
+            undergroundFloor.Name = "BrlinGhostFloor"
+            undergroundFloor.Size = Vector3.new(15, 1, 15)
+            undergroundFloor.Transparency = 1
+            undergroundFloor.Anchored = true
+            undergroundFloor.CanCollide = true
+            undergroundFloor.Parent = workspace
+        end
+        undergroundFloor.CFrame = CFrame.new(root.Position.X, undergroundY - 3.5, root.Position.Z)
+
+        -- تصادم مطفأ
+        setCharCollision(player.Character, false)
+
+        -- نزول مباشر
+        root.Anchored = true
+        root.CFrame = CFrame.new(root.Position.X, undergroundY, root.Position.Z)
+        task.wait(0.15)
+        root.Anchored = false
+
+        -- الحلقة الدائمة (فقط واحدة — نمنع التكرار!)
+        if earthConn then earthConn:Disconnect() end
+        earthConn = RunService.Stepped:Connect(function()
+            pcall(function()
+                local c = player.Character
+                if not c then return end
+                local r = c:FindFirstChild("HumanoidRootPart")
+                if not r then return end
+                
+                for _, part in pairs(c:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+                
+                if undergroundFloor and undergroundFloor.Parent then
+                    undergroundFloor.CFrame = CFrame.new(
+                        r.Position.X, 
+                        undergroundY - 3.5,
+                        r.Position.Z
+                    )
+                end
+
+                if r.Position.Y < undergroundY - 4 then
+                    r.CFrame = CFrame.new(r.Position.X, undergroundY, r.Position.Z)
+                end
+            end)
+        end)
+    end)
+end
+
+local function startDownEarth()
+    pcall(function()
+        savedEarthY = getRoot().Position.Y
+    end)
+    
+    notify("🕳️ Diving!", "الغوص + الدورة الوقائية كل " .. SAFE_TIME .. " ثانية ⚡", 4)
+
+    -- ⭐ الدورة الوقائية اللانهائية!
+    cycleThread = task.spawn(function()
+        while earthOn do
+            -- ١. الغوص
+            diveUnderground()
+            
+            -- ٢. الانتظار 15 ثانية بالضبط (بعدّاد معروض!)
+            local elapsed = 0
+            while elapsed < SAFE_TIME and earthOn do
+                task.wait(1)
+                elapsed = elapsed + 1
+                -- العدّاد حي في توست! (كل 5 ثواني تذكير)
+                if elapsed % 5 == 0 then
+                    notify("⏳ " .. (SAFE_TIME - elapsed) .. "s", "الوقت المتبقي قبل الدورة...", 1)
+                end
+            end
+
+            if not earthOn then break end
+
+            -- ٣. ⭐ الخروج اللحظي (مثل الإطفاء اليدوي تماماً!)
+            riseToSurface()
+
+            -- ٤. استراحة 2 ثانية فوق الأرض (نفس ما تفعل بيدك!)
+            notify("⬆️ Refresh!", "استراحة سريعة — سنعود تحت فوراً...", 2)
+            task.wait(SURFACE_BREAK)
+
+            -- ٥. نعود تحت — العدّاد يبدأ من جديد!
+            if not earthOn then break end
         end
         
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        -- إذا أطفأت الهك: نخرجك نهائياً
+        if not earthOn then
+            riseToSurface()
+        end
+    end)
+end
+
+local function stopDownEarth()
+    earthOn = false
+    
+    if cycleThread then
+        task.cancel(cycleThread)
+        cycleThread = nil
+    end
+    
+    if earthConn then
+        earthConn:Disconnect()
+        earthConn = nil
+    end
+    
+    if undergroundFloor then
+        undergroundFloor:Destroy()
+        undergroundFloor = nil
+    end
+    
+    pcall(function()
+        local root = getRoot()
+        local upY = savedEarthY or (root.Position.Y - UNDERGROUND_OFFSET)
+        root.Anchored = true
+        root.CFrame = CFrame.new(root.Position.X, upY, root.Position.Z)
+        task.wait(0.15)
+        root.Anchored = false
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
         if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
     end)
 
-    notify("⬆️ Back Up!", "نفس المكان فوق الأرض ✅", 4)
+    notify("⬆️ Stopped!", "خرجت من الغوص نهائياً ✅", 4)
 end
 
 --------------------------------------------------------------------
@@ -202,7 +255,7 @@ if game.CoreGui:FindFirstChild("BrlinCircle") then
 end
 
 --------------------------------------------------------------------
--- بناء الواجهة
+-- ⭐ بناء الواجهة — قائمة منسقة بأزرار قابلة للتزحلق!
 --------------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BrlinMenu"
@@ -210,8 +263,8 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 260, 0, 450)
-Frame.Position = UDim2.new(0.5, -130, 0.5, -225)
+Frame.Size = UDim2.new(0, 260, 0, 240)   -- ⭐ صغيرة أنيقة!
+Frame.Position = UDim2.new(0.5, -130, 0.5, -120)
 Frame.BackgroundColor3 = C_BG
 Frame.BorderSizePixel = 0
 Frame.Active = true
@@ -276,16 +329,48 @@ Line2.BackgroundColor3 = C_WHITE
 Line2.BorderSizePixel = 0
 Line2.Parent = Frame
 
-local function makeButton(text, yPos, callback)
+-- ⭐ ScrollingFrame — القائمة المنسقة القابلة للتزحلق!
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Size = UDim2.new(1, -24, 0, 120)
+Scroll.Position = UDim2.new(0, 12, 0, 118)
+Scroll.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Scroll.BorderSizePixel = 0
+Scroll.ScrollBarThickness = 5
+Scroll.ScrollBarImageColor3 = C_RED
+Scroll.CanvasSize = UDim2.new(0, 0, 0, 5 * 50)  -- 5 أزرار
+Scroll.Parent = Frame
+
+local ScrollCorner = Instance.new("UICorner")
+ScrollCorner.CornerRadius = UDim.new(0, 6)
+ScrollCorner.Parent = Scroll
+
+local ScrollStroke = Instance.new("UIStroke")
+ScrollStroke.Color = C_RED
+ScrollStroke.Thickness = 1.5
+ScrollStroke.Parent = Scroll
+
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 8)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = Scroll
+
+local padding = Instance.new("UIPadding")
+padding.PaddingTop = UDim.new(0, 6)
+padding.PaddingLeft = UDim.new(0, 8)
+padding.PaddingRight = UDim.new(0, 8)
+padding.Parent = Scroll
+
+-- دالة الأزرار (داخل السكرول!)
+local function makeButton(text, order, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -24, 0, 45)
-    btn.Position = UDim2.new(0, 12, 0, yPos)
+    btn.Size = UDim2.new(1, 0, 0, 42)
     btn.Text = text
     btn.TextColor3 = C_WHITE
     btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     btn.TextSize = 15
     btn.Font = Enum.Font.GothamBold
-    btn.Parent = Frame
+    btn.LayoutOrder = order
+    btn.Parent = Scroll
 
     local stroke = Instance.new("UIStroke")
     stroke.Color = C_RED
@@ -308,18 +393,16 @@ local function makeButton(text, yPos, callback)
 end
 
 --------------------------------------------------------------------
--- الأزرار
+-- الأزرار الخمسة (بالترتيب — تزحلق للباقي!)
 --------------------------------------------------------------------
 
--- ١. Set 💥 — بلا توست
-makeButton("Set 💥", 119, function()
+makeButton("Set 💥", 1, function()
     local root = getRoot()
     saveCFrame(root.CFrame)
     StatusText.Text = "✅ Saved"
 end)
 
--- ٢. Tp 🎩
-makeButton("Tp 🎩", 172, function()
+makeButton("Tp 🎩", 2, function()
     if SavedCFrame == nil then
         StatusText.Text = "❌ No Save"
         return
@@ -337,23 +420,22 @@ makeButton("Tp 🎩", 172, function()
     notify("Teleport Successful ⚡", "", 3)
 end)
 
--- ٣. Remove Set 🗑️
-makeButton("Remove Set 🗑️", 225, function()
+makeButton("Remove Set 🗑️", 3, function()
     clearCFrame()
     StatusText.Text = "❌ No Save"
     notify("Removed Set Successful✅", "", 3)
 end)
 
--- ٤. Down Earth 🕳️
+-- ٤. Down Earth 🕳️ — زر تفعلي
 local earthBtn = Instance.new("TextButton")
-earthBtn.Size = UDim2.new(1, -24, 0, 45)
-earthBtn.Position = UDim2.new(0, 12, 0, 278)
+earthBtn.Size = UDim2.new(1, 0, 0, 42)
 earthBtn.Text = "Down Earth 🕳️"
 earthBtn.TextColor3 = C_WHITE
 earthBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 earthBtn.TextSize = 15
 earthBtn.Font = Enum.Font.GothamBold
-earthBtn.Parent = Frame
+earthBtn.LayoutOrder = 4
+earthBtn.Parent = Scroll
 
 local earthStroke = Instance.new("UIStroke")
 earthStroke.Color = C_RED
@@ -370,11 +452,16 @@ earthBtn.MouseButton1Click:Connect(function()
     if earthOn then
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
         startDownEarth()
-        notify("🕳️ Under!", "امشي طبيعي — Y-Lock يحرسك! 🏃🛡️", 3)
     else
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         stopDownEarth()
     end
+end)
+
+-- ٥. Close Menu ❌
+makeButton("Close Menu ❌", 5, function()
+    Frame.Visible = false
+    CircleBtn.Visible = true
 end)
 
 --------------------------------------------------------------------
@@ -395,6 +482,7 @@ CircleBtn.TextSize = 24
 CircleBtn.Font = Enum.Font.GothamBlack
 CircleBtn.Visible = false
 CircleBtn.Active = true
+CircleBtn.Draggable = true
 CircleBtn.Parent = CircleGui
 
 local CircleShape = Instance.new("UICorner")
@@ -441,15 +529,9 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- ٥. Close Menu ❌
-makeButton("Close Menu ❌", 331, function()
-    Frame.Visible = false
-    CircleBtn.Visible = true
-end)
-
 --------------------------------------------------------------------
 Frame.Visible = true
 
-notify("⚡Brlin Funny Gamer⚡", "v2.4 Final Combo ✅", 4)
+notify("⚡Brlin Funny Gamer⚡", "v2.5 Cycles Ready ✅", 4)
 
-print("🧠 Brlin v2.4 Loaded! ✅")
+print("🧠 Brlin v2.5 Loaded! ✅")
