@@ -1,9 +1,10 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v1.3 + Down Earth 🕳️ — Steal a Brainrot
+--   v1.4 + Down Earth PRO 🕳️ (Y-Lock!)
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
+local RunService = game:GetService("RunService")
 
 local function getRoot()
     local char = player.Character or player.CharacterAdded:Wait()
@@ -50,31 +51,71 @@ local C_RED   = Color3.fromRGB(200, 30, 30)
 local C_WHITE = Color3.fromRGB(255, 255, 255)
 
 --------------------------------------------------------------------
--- 🕳️ Down Earth — النزول تحت الأرض
+-- 🕳️ Down Earth PRO — قفل المحور Y بالقوة!
 --------------------------------------------------------------------
 local earthOn = false
+local earthConn = nil
 local savedEarthY = nil
-local UNDERGROUND_OFFSET = -25  -- العمق تحت الأرض
+local undergroundY = nil
+local UNDERGROUND_OFFSET = -20  -- العمق (آمن فوق منطقة الموت!)
 
-local function downEarth(on)
+local function startDownEarth()
+    local root = getRoot()
+    
+    -- نحفظ ارتفاعك الأصلي ونحدد عمق النزول
+    savedEarthY = root.Position.Y
+    undergroundY = root.Position.Y + UNDERGROUND_OFFSET
+    
+    -- ⬇️ النزول الأولي
+    root.Anchored = true
+    root.CFrame = CFrame.new(root.Position.X, undergroundY, root.Position.Z)
+    task.wait(0.1)
+    root.Anchored = false
+
+    -- ⚡ القفل المستمر — 60 مرة بالثانية!
+    earthConn = RunService.Stepped:Connect(function()
+        pcall(function()
+            local char = player.Character
+            if not char then return end
+            local r = char:FindFirstChild("HumanoidRootPart")
+            if not r then return end
+
+            -- ١. قفل Y: إذا السيرفر رفعك — نرجعك فوراً!
+            local pos = r.Position
+            if math.abs(pos.Y - undergroundY) > 3 then
+                r.CFrame = CFrame.new(pos.X, undergroundY, pos.Z)
+            end
+
+            -- ٢. إلغاء التصادم (تمشي عبر كل شيء تحت الأرض!)
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+
+            -- ٣. تصفير السرعة (لا سقوط، لا انزلاق!)
+            r.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        end)
+    end)
+end
+
+local function stopDownEarth()
+    -- إيقاف القفل
+    if earthConn then
+        earthConn:Disconnect()
+        earthConn = nil
+    end
+    
+    -- ⬆️ الرفع: نفس X/Z بالضبط — فقط Y يعود للفوق!
     pcall(function()
         local root = getRoot()
-        if on then
-            -- نحفظ الارتفاع الحالي وننزل بعمق آمن
-            savedEarthY = root.Position.Y
-            root.Anchored = true
-            root.CFrame = CFrame.new(root.Position.X, root.Position.Y + UNDERGROUND_OFFSET, root.Position.Z)
-            task.wait(0.1)
-            root.Anchored = false
-        else
-            -- نرفعك: نفس X/Z بالضبط — فقط Y يعود للفوق!
-            root.Anchored = true
-            root.CFrame = CFrame.new(root.Position.X, savedEarthY or (root.Position.Y - UNDERGROUND_OFFSET), root.Position.Z)
-            task.wait(0.1)
-            root.Anchored = false
-            local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-            if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
-        end
+        local upY = savedEarthY or (root.Position.Y - UNDERGROUND_OFFSET)
+        root.Anchored = true
+        root.CFrame = CFrame.new(root.Position.X, upY, root.Position.Z)
+        task.wait(0.1)
+        root.Anchored = false
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
     end)
 end
 
@@ -96,7 +137,6 @@ ScreenGui.Name = "BrlinMenu"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.CoreGui
 
--- الإطار الرئيسي + الإطار الأحمر المحيط
 local Frame = Instance.new("Frame")
 Frame.Size = UDim2.new(0, 260, 0, 450)
 Frame.Position = UDim2.new(0.5, -130, 0.5, -225)
@@ -116,7 +156,6 @@ local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(0, 8)
 Corner.Parent = Frame
 
--- اسم المطور (أبيض)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
@@ -126,7 +165,6 @@ Title.TextSize = 17
 Title.Font = Enum.Font.GothamBold
 Title.Parent = Frame
 
--- خط أبيض فاصل ١
 local Line1 = Instance.new("Frame")
 Line1.Size = UDim2.new(1, -20, 0, 2)
 Line1.Position = UDim2.new(0, 10, 0, 42)
@@ -134,7 +172,6 @@ Line1.BackgroundColor3 = C_WHITE
 Line1.BorderSizePixel = 0
 Line1.Parent = Frame
 
--- Category الحالة (Saved/No Save)
 local Category = Instance.new("Frame")
 Category.Size = UDim2.new(1, -24, 0, 45)
 Category.Position = UDim2.new(0, 12, 0, 52)
@@ -160,7 +197,6 @@ StatusText.TextSize = 16
 StatusText.Font = Enum.Font.GothamBold
 StatusText.Parent = Category
 
--- خط أبيض فاصل ٢
 local Line2 = Instance.new("Frame")
 Line2.Size = UDim2.new(1, -20, 0, 2)
 Line2.Position = UDim2.new(0, 10, 0, 107)
@@ -168,7 +204,6 @@ Line2.BackgroundColor3 = C_WHITE
 Line2.BorderSizePixel = 0
 Line2.Parent = Frame
 
--- دالة الأزرار (كل زر: مربع أسود + إطار أحمر يحيط به!)
 local function makeButton(text, yPos, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -24, 0, 45)
@@ -204,14 +239,12 @@ end
 -- الأزرار
 --------------------------------------------------------------------
 
--- ١. Set 💥 — بلا توست، الشريط يتغير فقط
 makeButton("Set 💥", 119, function()
     local root = getRoot()
     saveCFrame(root.CFrame)
     StatusText.Text = "✅ Saved"
 end)
 
--- ٢. Tp 🎩 — توست: Teleport Successful ⚡
 makeButton("Tp 🎩", 172, function()
     if SavedCFrame == nil then
         StatusText.Text = "❌ No Save"
@@ -236,7 +269,6 @@ makeButton("Tp 🎩", 172, function()
     end)
 end)
 
--- ٣. Remove Set 🗑️ — توست: Removed Set Successful✅
 makeButton("Remove Set 🗑️", 225, function()
     clearCFrame()
     StatusText.Text = "❌ No Save"
@@ -249,7 +281,7 @@ makeButton("Remove Set 🗑️", 225, function()
     end)
 end)
 
--- ٤. Down Earth 🕳️ — زر تفعلي (أخضر عند ON)
+-- ٤. Down Earth 🕳️ — الزر التفعلي PRO!
 local earthBtn = Instance.new("TextButton")
 earthBtn.Size = UDim2.new(1, -24, 0, 45)
 earthBtn.Position = UDim2.new(0, 12, 0, 278)
@@ -274,15 +306,29 @@ earthBtn.MouseButton1Click:Connect(function()
     earthOn = not earthOn
     if earthOn then
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
-        downEarth(true)
+        startDownEarth()
+        pcall(function()
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "🕳️ Underground ON!",
+                Text = "Y-Lock مفعّل — السيرفر لا يقهرنا!",
+                Duration = 3
+            })
+        end)
     else
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-        downEarth(false)
+        stopDownEarth()
+        pcall(function()
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "⬆️ Back Up!",
+                Text = "نفس المكان فوق الأرض بالضبط ✅",
+                Duration = 3
+            })
+        end)
     end
 end)
 
 --------------------------------------------------------------------
--- 🖤 الدائرة B — قابلة للسحب بالإصبع
+-- 🖤 الدائرة B
 --------------------------------------------------------------------
 local CircleGui = Instance.new("ScreenGui")
 CircleGui.Name = "BrlinCircle"
@@ -315,7 +361,6 @@ CircleBtn.MouseButton1Click:Connect(function()
     CircleBtn.Visible = false
 end)
 
--- السحب بالإصبع (Touch + Mouse)
 local UserInputService = game:GetService("UserInputService")
 local dragging = false
 local dragStart = nil
@@ -346,21 +391,19 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- ٥. Close Menu ❌ — إخفاء + إظهار الدائرة
+-- ٥. Close Menu ❌
 makeButton("Close Menu ❌", 331, function()
     Frame.Visible = false
     CircleBtn.Visible = true
 end)
 
 --------------------------------------------------------------------
--- فتح القائمة عند التشغيل
---------------------------------------------------------------------
 Frame.Visible = true
 
 game.StarterGui:SetCore("SendNotification", {
     Title = "⚡Brlin Funny Gamer⚡",
-    Text = "Menu v1.3 Loaded ✅",
+    Text = "v1.4 Down Earth PRO ✅",
     Duration = 4
 })
 
-print("🧠 Brlin Menu v1.3 Loaded! ✅")
+print("🧠 Brlin v1.4 Down Earth PRO Loaded! ✅")
