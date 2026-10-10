@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
---   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v3.1 — Down Earth + Infinity Jump 👟
+--   ⚡ Brlin Funny Gamer ⚡ — Steal a Brainrot
+--   v3.2 — Teleport + Down Earth + Infinity Jump
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -15,13 +15,15 @@ end
 local function notify(title, text, dur)
     pcall(function()
         game.StarterGui:SetCore("SendNotification", {
-            Title = title, Text = text, Duration = dur or 3
+            Title = title,
+            Text = text,
+            Duration = dur or 3
         })
     end)
 end
 
 --------------------------------------------------------------------
--- نظام الحفظ الدائم
+-- Teleport
 --------------------------------------------------------------------
 local SAVE_FILE = "BrlinTP.txt"
 local SavedCFrame = nil
@@ -48,19 +50,14 @@ end
 local function clearCFrame()
     SavedCFrame = nil
     if writefile and isfile and isfile(SAVE_FILE) then
-        pcall(function() delfile(SAVE_FILE) end)
+        pcall(function()
+            delfile(SAVE_FILE)
+        end)
     end
 end
 
 --------------------------------------------------------------------
--- الألوان
---------------------------------------------------------------------
-local C_BG    = Color3.fromRGB(15, 15, 15)
-local C_RED   = Color3.fromRGB(200, 30, 30)
-local C_WHITE = Color3.fromRGB(255, 255, 255)
-
---------------------------------------------------------------------
--- 🕳️ Down Earth — المتغيرات
+-- Down Earth Variables
 --------------------------------------------------------------------
 local earthOn = false
 local earthConn = nil
@@ -81,9 +78,6 @@ local function setCharCollision(char, on)
     end)
 end
 
---------------------------------------------------------------------
--- 🛡️🛡️ الدرع المزدوج
---------------------------------------------------------------------
 local function startShield(hum)
     pcall(function()
         shieldConn = hum.HealthChanged:Connect(function(health)
@@ -122,9 +116,6 @@ local function stopShield()
     end
 end
 
---------------------------------------------------------------------
--- 🛗 الصعود للسطح
---------------------------------------------------------------------
 local function riseToSurface()
     if earthConn then
         earthConn:Disconnect()
@@ -144,13 +135,12 @@ local function riseToSurface()
         root.Anchored = false
         setCharCollision(player.Character, true)
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
     end)
 end
 
---------------------------------------------------------------------
--- 🕳️ بدء الغوص (مصحح كاملاً!)
---------------------------------------------------------------------
 local function startDownEarth()
     pcall(function()
         savedEarthY = getRoot().Position.Y
@@ -179,13 +169,19 @@ local function startDownEarth()
             task.wait(0.15)
             root.Anchored = false
 
-            if earthConn then earthConn:Disconnect() end
+            if earthConn then
+                earthConn:Disconnect()
+            end
             earthConn = RunService.Stepped:Connect(function()
                 pcall(function()
                     local c = player.Character
-                    if not c then return end
+                    if not c then
+                        return
+                    end
                     local r = c:FindFirstChild("HumanoidRootPart")
-                    if not r then return end
+                    if not r then
+                        return
+                    end
 
                     for _, part in pairs(c:GetDescendants()) do
                         if part:IsA("BasePart") then
@@ -194,11 +190,7 @@ local function startDownEarth()
                     end
 
                     if undergroundFloor and undergroundFloor.Parent then
-                        undergroundFloor.CFrame = CFrame.new(
-                            r.Position.X,
-                            undergroundY - 3.5,
-                            r.Position.Z
-                        )
+                        undergroundFloor.CFrame = CFrame.new(r.Position.X, undergroundY - 3.5, r.Position.Z)
                     end
 
                     local pos = r.Position
@@ -216,19 +208,24 @@ local function startDownEarth()
             end)
 
             local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-            if hum then startShield(hum) end
+            if hum then
+                startShield(hum)
+            end
         end)
     end)
 
-    -- بعد Respawn اليدوي — نغوصك من جديد تلقائياً!
     player.CharacterAdded:Connect(function(char)
-        if not earthOn then return end
+        if not earthOn then
+            return
+        end
         task.wait(1)
         pcall(function()
             local root = char:WaitForChild("HumanoidRootPart", 5)
             undergroundY = (savedEarthY or root.Position.Y) + UNDERGROUND_OFFSET
 
-            if undergroundFloor then undergroundFloor:Destroy() end
+            if undergroundFloor then
+                undergroundFloor:Destroy()
+            end
             undergroundFloor = Instance.new("Part")
             undergroundFloor.Name = "BrlinGhostFloor"
             undergroundFloor.Size = Vector3.new(15, 1, 15)
@@ -246,16 +243,15 @@ local function startDownEarth()
             root.Anchored = false
 
             local hum = char:WaitForChild("Humanoid", 5)
-            if hum then startShield(hum) end
+            if hum then
+                startShield(hum)
+            end
         end)
     end)
 
-    notify("🕳️ Diving!", "الدرع المزدوج 🛡️🛡️ مفعّل — لا موت تحت!", 4)
+    notify("🕳️ Diving!", "الدرع المزدوج مفعّل — لا موت تحت!", 4)
 end
 
---------------------------------------------------------------------
--- ⏹️ إيقاف الغوص
---------------------------------------------------------------------
 local function stopDownEarth()
     earthOn = false
 
@@ -266,21 +262,20 @@ local function stopDownEarth()
 
     riseToSurface()
 
-    notify("⬆️ Back Up!", "لو السرعة بطيئة — اسوِ Respawn يدوياً 😄", 4)
+    notify("⬆️ Back Up!", "نفس المكان فوق الأرض ✅", 4)
 end
 
 --------------------------------------------------------------------
--- 👟 Infinity Jump — القفز الثلاثي (حد 3!)
+-- Infinity Jump Variables
 --------------------------------------------------------------------
 local jumpOn = false
 local jumpConn = nil
 local jumpCount = 0
-local MAX_JUMPS = 3   -- الحد الأقصى!
+local MAX_JUMPS = 3
 
 local function setupJumpMonitor(hum)
     hum.StateChanged:Connect(function(old, new)
         if new == Enum.HumanoidStateType.Landed then
-            -- لمس الأرض! العدّاد يصفّر!
             jumpCount = 0
         end
     end)
@@ -295,20 +290,25 @@ local function startInfinityJump()
                 setupJumpMonitor(hum)
 
                 jumpConn = UserInputService.JumpRequest:Connect(function()
-                    if not jumpOn then return end
+                    if not jumpOn then
+                        return
+                    end
                     pcall(function()
                         local c = player.Character
-                        if not c then return end
+                        if not c then
+                            return
+                        end
                         local h = c:FindFirstChildOfClass("Humanoid")
                         local r = c:FindFirstChild("HumanoidRootPart")
-                        if not h or not r then return end
+                        if not h or not r then
+                            return
+                        end
 
                         local state = h:GetState()
                         local inAir = state == Enum.HumanoidStateType.Freefall
                             or state == Enum.HumanoidStateType.Jumping
 
                         if inAir and jumpCount < MAX_JUMPS then
-                            -- قفزة إضافية!
                             jumpCount = jumpCount + 1
                             r.AssemblyLinearVelocity = Vector3.new(
                                 r.AssemblyLinearVelocity.X,
@@ -317,11 +317,9 @@ local function startInfinityJump()
                             )
                             h:ChangeState(Enum.HumanoidStateType.Jumping)
                         end
-                        -- الحد 3! أكثر = لا شيء!
                     end)
-                end
+                end)
 
-                -- مراقبة الشخصية الجديدة عند Respawn
                 player.CharacterAdded:Connect(function(newChar)
                     if jumpOn then
                         task.wait(1)
@@ -332,7 +330,7 @@ local function startInfinityJump()
                     end
                 end)
             end
-        end)
+        end
     end)
 end
 
@@ -345,7 +343,7 @@ local function stopInfinityJump()
 end
 
 --------------------------------------------------------------------
--- تدمير الواجهات القديمة
+-- UI
 --------------------------------------------------------------------
 if game.CoreGui:FindFirstChild("BrlinMenu") then
     game.CoreGui:FindFirstChild("BrlinMenu"):Destroy()
@@ -354,9 +352,6 @@ if game.CoreGui:FindFirstChild("BrlinCircle") then
     game.CoreGui:FindFirstChild("BrlinCircle"):Destroy()
 end
 
---------------------------------------------------------------------
--- ⭐ بناء القائمة
---------------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BrlinMenu"
 ScreenGui.ResetOnSpawn = false
@@ -365,27 +360,27 @@ ScreenGui.Parent = game.CoreGui
 local Frame = Instance.new("Frame")
 Frame.Size = UDim2.new(0, 260, 0, 285)
 Frame.Position = UDim2.new(0.5, -130, 0.5, -142)
-Frame.BackgroundColor3 = C_BG
+Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 Frame.BorderSizePixel = 0
 Frame.Active = true
 Frame.Draggable = true
 Frame.Parent = ScreenGui
 
 local RedBorder = Instance.new("UIStroke")
-RedBorder.Color = C_RED
+RedBorder.Color = Color3.fromRGB(200, 30, 30)
 RedBorder.Thickness = 2
 RedBorder.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 RedBorder.Parent = Frame
 
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 8)
-Corner.Parent = Frame
+local FrameCorner = Instance.new("UICorner")
+FrameCorner.CornerRadius = UDim.new(0, 8)
+FrameCorner.Parent = Frame
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
 Title.Text = "⚡Brlin Funny Gamer⚡"
-Title.TextColor3 = C_WHITE
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 17
 Title.Font = Enum.Font.GothamBold
 Title.Parent = Frame
@@ -393,7 +388,7 @@ Title.Parent = Frame
 local Line1 = Instance.new("Frame")
 Line1.Size = UDim2.new(1, -20, 0, 2)
 Line1.Position = UDim2.new(0, 10, 0, 42)
-Line1.BackgroundColor3 = C_WHITE
+Line1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 Line1.BorderSizePixel = 0
 Line1.Parent = Frame
 
@@ -405,7 +400,7 @@ Category.BorderSizePixel = 0
 Category.Parent = Frame
 
 local CatBorder = Instance.new("UIStroke")
-CatBorder.Color = C_RED
+CatBorder.Color = Color3.fromRGB(200, 30, 30)
 CatBorder.Thickness = 1.5
 CatBorder.Parent = Category
 
@@ -417,7 +412,7 @@ local StatusText = Instance.new("TextLabel")
 StatusText.Size = UDim2.new(1, 0, 1, 0)
 StatusText.BackgroundTransparency = 1
 StatusText.Text = SavedCFrame and "✅ Saved" or "❌ No Save"
-StatusText.TextColor3 = C_WHITE
+StatusText.TextColor3 = Color3.fromRGB(255, 255, 255)
 StatusText.TextSize = 16
 StatusText.Font = Enum.Font.GothamBold
 StatusText.Parent = Category
@@ -425,18 +420,17 @@ StatusText.Parent = Category
 local Line2 = Instance.new("Frame")
 Line2.Size = UDim2.new(1, -20, 0, 2)
 Line2.Position = UDim2.new(0, 10, 0, 107)
-Line2.BackgroundColor3 = C_WHITE
+Line2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 Line2.BorderSizePixel = 0
 Line2.Parent = Frame
 
--- السكرول المنسق (يتمدد تلقائياً للأزرار!)
 local Scroll = Instance.new("ScrollingFrame")
 Scroll.Size = UDim2.new(1, -24, 0, 152)
 Scroll.Position = UDim2.new(0, 12, 0, 118)
 Scroll.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 Scroll.BorderSizePixel = 0
 Scroll.ScrollBarThickness = 5
-Scroll.ScrollBarImageColor3 = C_RED
+Scroll.ScrollBarImageColor3 = Color3.fromRGB(200, 30, 30)
 Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 Scroll.Parent = Frame
@@ -446,7 +440,7 @@ ScrollCorner.CornerRadius = UDim.new(0, 6)
 ScrollCorner.Parent = Scroll
 
 local ScrollStroke = Instance.new("UIStroke")
-ScrollStroke.Color = C_RED
+ScrollStroke.Color = Color3.fromRGB(200, 30, 30)
 ScrollStroke.Thickness = 1.5
 ScrollStroke.Parent = Scroll
 
@@ -462,39 +456,8 @@ padding.PaddingRight = UDim.new(0, 8)
 padding.PaddingBottom = UDim.new(0, 6)
 padding.Parent = Scroll
 
-local function makeButton(text, order, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 42)
-    btn.Text = text
-    btn.TextColor3 = C_WHITE
-    btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    btn.TextSize = 15
-    btn.Font = Enum.Font.GothamBold
-    btn.LayoutOrder = order
-    btn.Parent = Scroll
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = C_RED
-    stroke.Thickness = 1.5
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.Parent = btn
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = btn
-
-    btn.MouseEnter:Connect(function()
-        btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    end)
-    btn.MouseLeave:Connect(function()
-        btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    end)
-
-    btn.MouseButton1Click:Connect(callback)
-end
-
 --------------------------------------------------------------------
--- ⭐ الدائرة B (قبل الأزرار!)
+-- Circle B
 --------------------------------------------------------------------
 local CircleGui = Instance.new("ScreenGui")
 CircleGui.Name = "BrlinCircle"
@@ -505,7 +468,7 @@ local CircleBtn = Instance.new("TextButton")
 CircleBtn.Size = UDim2.new(0, 55, 0, 55)
 CircleBtn.Position = UDim2.new(0, 15, 0.5, -27)
 CircleBtn.Text = "B"
-CircleBtn.TextColor3 = C_WHITE
+CircleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 CircleBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 CircleBtn.TextSize = 24
 CircleBtn.Font = Enum.Font.GothamBlack
@@ -518,7 +481,7 @@ CircleShape.CornerRadius = UDim.new(1, 0)
 CircleShape.Parent = CircleBtn
 
 local CircleStroke = Instance.new("UIStroke")
-CircleStroke.Color = C_RED
+CircleStroke.Color = Color3.fromRGB(200, 30, 30)
 CircleStroke.Thickness = 1.5
 CircleStroke.Parent = CircleBtn
 
@@ -527,7 +490,6 @@ CircleBtn.MouseButton1Click:Connect(function()
     CircleBtn.Visible = false
 end)
 
--- السحب بالإصبع
 local dragging = false
 local dragStart = nil
 local startPos = nil
@@ -547,28 +509,59 @@ CircleBtn.InputBegan:Connect(function(input)
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch) then
+    if dragging
+        and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
         CircleBtn.Position = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
         )
     end
 end)
 
 --------------------------------------------------------------------
--- الأزرار الستة
+-- Buttons
 --------------------------------------------------------------------
+local function makeButton(text, order, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 42)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    btn.TextSize = 15
+    btn.Font = Enum.Font.GothamBold
+    btn.LayoutOrder = order
+    btn.Parent = Scroll
 
--- ١. Set 💥 — بلا توست
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(200, 30, 30)
+    stroke.Thickness = 1.5
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent = btn
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    end)
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    end)
+
+    btn.MouseButton1Click:Connect(callback)
+end
+
 makeButton("Set 💥", 1, function()
     local root = getRoot()
     saveCFrame(root.CFrame)
     StatusText.Text = "✅ Saved"
 end)
 
--- ٢. Tp 🎩
 makeButton("Tp 🎩", 2, function()
     if SavedCFrame == nil then
         StatusText.Text = "❌ No Save"
@@ -582,23 +575,23 @@ makeButton("Tp 🎩", 2, function()
     root.Anchored = false
     pcall(function()
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
     end)
     notify("Teleport Successful ⚡", "", 3)
 end)
 
--- ٣. Remove Set 🗑️
 makeButton("Remove Set 🗑️", 3, function()
     clearCFrame()
     StatusText.Text = "❌ No Save"
     notify("Removed Set Successful✅", "", 3)
 end)
 
--- ٤. Down Earth 🕳️ — زر ON/OFF أخضر
 local earthBtn = Instance.new("TextButton")
 earthBtn.Size = UDim2.new(1, 0, 0, 42)
 earthBtn.Text = "Down Earth 🕳️ [OFF]"
-earthBtn.TextColor3 = C_WHITE
+earthBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 earthBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 earthBtn.TextSize = 15
 earthBtn.Font = Enum.Font.GothamBold
@@ -606,7 +599,7 @@ earthBtn.LayoutOrder = 4
 earthBtn.Parent = Scroll
 
 local earthStroke = Instance.new("UIStroke")
-earthStroke.Color = C_RED
+earthStroke.Color = Color3.fromRGB(200, 30, 30)
 earthStroke.Thickness = 1.5
 earthStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 earthStroke.Parent = earthBtn
@@ -628,11 +621,10 @@ earthBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ٥. Infinity Jump 👟 — زر ON/OFF أخضر (نفس أسلوب Down Earth!)
 local jumpBtn = Instance.new("TextButton")
 jumpBtn.Size = UDim2.new(1, 0, 0, 42)
 jumpBtn.Text = "Infinity Jump 👟 [OFF]"
-jumpBtn.TextColor3 = C_WHITE
+jumpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 jumpBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 jumpBtn.TextSize = 15
 jumpBtn.Font = Enum.Font.GothamBold
@@ -640,7 +632,7 @@ jumpBtn.LayoutOrder = 5
 jumpBtn.Parent = Scroll
 
 local jumpStroke = Instance.new("UIStroke")
-jumpStroke.Color = C_RED
+jumpStroke.Color = Color3.fromRGB(200, 30, 30)
 jumpStroke.Thickness = 1.5
 jumpStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 jumpStroke.Parent = jumpBtn
@@ -655,24 +647,22 @@ jumpBtn.MouseButton1Click:Connect(function()
         jumpBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
         jumpBtn.Text = "Infinity Jump 👟 [ON]"
         startInfinityJump()
-        notify("👟 Infinity Jump ON!", "اقفز 3 مرات متتالية! 🦘🦘🦘", 3)
+        notify("👟 Infinity Jump ON!", "اقفز 3 مرات متتالية!", 3)
     else
         jumpBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         jumpBtn.Text = "Infinity Jump 👟 [OFF]"
         stopInfinityJump()
-        notify("👟 Infinity Jump OFF", "رجعت قفزة واحدة عادية", 3)
+        notify("👟 Infinity Jump OFF", "رجعت قفزة عادية", 3)
     end
 end)
 
--- ٦. Close Menu ❌ — الدائرة معرفة قبل → يشتغل!
 makeButton("Close Menu ❌", 6, function()
     Frame.Visible = false
     CircleBtn.Visible = true
 end)
 
---------------------------------------------------------------------
 Frame.Visible = true
 
-notify("⚡Brlin Funny Gamer⚡", "v3.1 Loaded ✅", 4)
+notify("⚡Brlin Funny Gamer⚡", "v3.2 Loaded ✅", 4)
 
-print("🧠 Brlin v3.1 Loaded! ✅")
+print("🧠 Brlin v3.2 Loaded! ✅")
