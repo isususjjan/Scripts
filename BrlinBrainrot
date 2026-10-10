@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Teleport Menu
---   v1.8 — Down Earth (نظيف وبسيط!) 🕳️
+--   v1.9 — Down Earth (السرعة الشرعية!) 🕳️
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -18,11 +18,6 @@ local function notify(title, text, dur)
         })
     end)
 end
-
---------------------------------------------------------------------
--- ⚙️ الإعدادات
---------------------------------------------------------------------
-local UNDERGROUND_SPEED = 60   -- سرعة الغوص (40 هادئة / 60 ممتازة / 80 سريعة!)
 
 --------------------------------------------------------------------
 -- نظام الحفظ الدائم
@@ -64,7 +59,7 @@ local C_RED   = Color3.fromRGB(200, 30, 30)
 local C_WHITE = Color3.fromRGB(255, 255, 255)
 
 --------------------------------------------------------------------
--- 🕳️ Down Earth — قفل Y + سرعة متوازنة
+-- 🕳️ Down Earth — السرعة الشرعية (سرعة اللعبة الأصلية!)
 --------------------------------------------------------------------
 local earthOn = false
 local earthConn = nil
@@ -75,6 +70,15 @@ local UNDERGROUND_OFFSET = -20
 local function startDownEarth()
     local root = getRoot()
     
+    -- نحفظ سرعتك الحقيقية الحالية (سرعة اللعبة الطبيعية بدون هك!)
+    local realSpeed = 16
+    pcall(function()
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if hum and hum.WalkSpeed > 0 and hum.WalkSpeed < 50 then
+            realSpeed = hum.WalkSpeed
+        end
+    end)
+    
     savedEarthY = root.Position.Y
     undergroundY = root.Position.Y + UNDERGROUND_OFFSET
     
@@ -83,11 +87,6 @@ local function startDownEarth()
     task.wait(0.1)
     root.Anchored = false
 
-    pcall(function()
-        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum.WalkSpeed = UNDERGROUND_SPEED end
-    end)
-
     earthConn = RunService.Stepped:Connect(function()
         pcall(function()
             local char = player.Character
@@ -95,31 +94,29 @@ local function startDownEarth()
             local r = char:FindFirstChild("HumanoidRootPart")
             if not r then return end
 
+            -- ١. قفل Y فقط (هذا يعمل!)
             local pos = r.Position
             if math.abs(pos.Y - undergroundY) > 3 then
                 r.CFrame = CFrame.new(pos.X, undergroundY, pos.Z)
             end
 
+            -- ٢. إلغاء التصادم (يعمل!)
             for _, part in pairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then
                     part.CanCollide = false
                 end
             end
 
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.WalkSpeed = UNDERGROUND_SPEED
-                local moveDir = hum.MoveDirection
-                if moveDir.Magnitude > 0 then
-                    r.AssemblyLinearVelocity = Vector3.new(
-                        moveDir.X * UNDERGROUND_SPEED, 
-                        0, 
-                        moveDir.Z * UNDERGROUND_SPEED
-                    )
-                else
-                    r.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            -- ٣. السرعة = قيمة اللعبة الأصلية فقط!
+            -- (لا سرعة هك! إن جمّدت اللعبة سرعتك لصفر — نعيدها لقيمتها الشرعية!)
+            pcall(function()
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum and hum.WalkSpeed == 0 then
+                    hum.WalkSpeed = realSpeed
                 end
-            end
+            end)
+
+            -- ٤. لا AssemblyLinearVelocity إطلاقاً! (هذا ما فتح عين الحماية سابقاً!)
         end)
     end)
 end
@@ -141,7 +138,7 @@ local function stopDownEarth()
         if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
     end)
 
-    notify("⬆️ Back Up!", "لو السرعة بطيئة — اسوِ Respawn يدوياً 😄", 4)
+    notify("⬆️ Back Up!", "نفس المكان فوق الأرض ✅", 4)
 end
 
 --------------------------------------------------------------------
@@ -323,7 +320,7 @@ earthBtn.MouseButton1Click:Connect(function()
     if earthOn then
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
         startDownEarth()
-        notify("🕳️ Underground ON!", "سرعة " .. UNDERGROUND_SPEED .. " + Y-Lock ✅", 3)
+        notify("🕳️ Underground ON!", "سرعة شرعية — لا حظر! ✅", 3)
     else
         earthBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         stopDownEarth()
@@ -404,6 +401,6 @@ end)
 --------------------------------------------------------------------
 Frame.Visible = true
 
-notify("⚡Brlin Funny Gamer⚡", "v1.8 Loaded ✅", 4)
+notify("⚡Brlin Funny Gamer⚡", "v1.9 Legal Speed ✅", 4)
 
-print("🧠 Brlin v1.8 Loaded! ✅")
+print("🧠 Brlin v1.9 Loaded! ✅")
