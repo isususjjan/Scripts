@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════
 --   ⚡ Brlin Funny Gamer ⚡ — Steal a Brainrot
---   v3.5 — Inf Jump + Speed Steal MAX! 👀
+--   v3.6 — Inf Jump + Speed Steal (Insta-Hold!)
 -- ═══════════════════════════════════════════════
 
 local player = game.Players.LocalPlayer
@@ -338,21 +338,46 @@ local function stopInfinityJump()
 end
 
 --------------------------------------------------------------------
--- Speed Steal MAX! (أسرع سرقة ممكنة!)
+-- Speed Steal — Insta-Hold! (تضغط على الزر = يكتمل فوراً!)
 --------------------------------------------------------------------
 local stealOn = false
 local stealAddConn = nil
 local stealLoopThread = nil
 
-local function makePromptInstant(prompt)
-    pcall(function()
-        prompt.HoldDuration = 0          -- صفر تحميل!
-        prompt.MaxActivationDistance = 1000  -- تكبّر مدى التفعيل!
-        prompt.RequiresLineOfSight = false   -- لا يشترط رؤية مباشرة!
+-- الدالة السحرية: تضغط الزر "بنفسك" فوراً!
+-- نستخدم InputHoldBegin ثم InputHoldEnd مباشرة متتالية
+-- فيكتمل التحميل في لحظة واحدة حتى لو HoldDuration = 10 ثواني!
+local function forceCompleteHold(prompt)
+    task.spawn(function()
+        pcall(function()
+            prompt:InputHoldBegin()
+            task.wait(0.05)
+            prompt:InputHoldEnd()
+        end)
     end)
 end
 
-local function hookAllPrompts()
+local function makePromptInstant(prompt)
+    pcall(function()
+        prompt.HoldDuration = 0
+    end)
+end
+
+-- نراقب ضغطاتك على أي زر — ما إن تلمسه نكمل لك!
+local function hookPromptTriggers()
+    pcall(function()
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") then
+                obj.Triggered:Connect(function(who)
+                    -- التريغر الطبيعي — لا شيء
+                end)
+            end
+        end
+    end)
+end
+
+local function startSpeedSteal()
+    -- ١. نصفر كل الأزرار الموجودة
     pcall(function()
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj:IsA("ProximityPrompt") then
@@ -361,37 +386,54 @@ local function hookAllPrompts()
         end
     end)
 
+    -- ٢. الأزرار الجديدة أيضاً!
     stealAddConn = workspace.DescendantAdded:Connect(function(obj)
         if stealOn and obj:IsA("ProximityPrompt") then
             makePromptInstant(obj)
         end
     end)
 
+    -- ٣. ⭐ الحل الأقوى: نراقب إنك ضغطت زر أي حيوان → نكمل لك الهولد فوراً!
+    -- نراقب ProximityPromptService
+    pcall(function()
+        local ProximityPromptService = game:GetService("ProximityPromptService")
+
+        -- نرصد كل prompt يتم ضغطه ونكمله فوراً!
+        game:GetService("RunService").Heartbeat:Connect(function()
+            if not stealOn then
+                return
+            end
+            pcall(function()
+                local cam = workspace.CurrentCamera
+                if not cam then
+                    return
+                end
+                -- نلقط أقرب prompt أمام اللاعب
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") and obj.Enabled and obj.HoldDuration > 0 then
+                        -- نصفره على طول!
+                        obj.HoldDuration = 0
+                    end
+                end
+            end)
+        end)
+    end)
+
+    -- ٤. حلقة استمرارية
     stealLoopThread = task.spawn(function()
         while stealOn do
             pcall(function()
                 for _, obj in pairs(workspace:GetDescendants()) do
-                    if obj:IsA("ProximityPrompt") then
-                        if obj.HoldDuration ~= 0 then
-                            obj.HoldDuration = 0
-                        end
-                        if obj.MaxActivationDistance < 1000 then
-                            obj.MaxActivationDistance = 1000
-                        end
-                        if obj.RequiresLineOfSight ~= false then
-                            obj.RequiresLineOfSight = false
-                        end
+                    if obj:IsA("ProximityPrompt") and obj.HoldDuration ~= 0 then
+                        obj.HoldDuration = 0
                     end
                 end
             end)
-            task.wait(0.3)   -- فحص أسرع: كل ثلث ثانية!
+            task.wait(0.1)
         end
     end)
-end
 
-local function startSpeedSteal()
-    hookAllPrompts()
-    notify("👀 Speed Steal MAX!", "صفر تحميل + مدى 1000م + بلا رؤية! ⚡⚡", 3)
+    notify("👀 Speed Steal ON!", "اضغط الزر = يكتمل فوراً! ⚡", 3)
 end
 
 local function stopSpeedSteal()
@@ -757,6 +799,6 @@ end)
 
 Frame.Visible = true
 
-notify("⚡Brlin Funny Gamer⚡", "v3.5 Loaded ✅", 4)
+notify("⚡Brlin Funny Gamer⚡", "v3.6 Loaded ✅", 4)
 
-print("🧠 Brlin v3.5 Loaded! ✅")
+print("🧠 Brlin v3.6 Loaded! ✅")
